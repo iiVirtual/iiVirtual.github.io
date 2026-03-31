@@ -1,4 +1,4 @@
-const CACHE = "hypertrophy-v5";
+const CACHE = "hypertrophy-v6";
 const ASSETS = [
   "./",
   "./index.html",
@@ -51,3 +51,4 @@ self.addEventListener("fetch", (e) => {
     })
   );
 });
+

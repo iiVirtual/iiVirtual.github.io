@@ -89,7 +89,7 @@ function activeSessionToday(state, dayKey) {
 }
 
 function closeStaleSessions(state, dayKey) {
-  for (const s of state.sessions) {
+  for (const s of [...state.sessions]) {
     if (!s.completed && s.dayKey === dayKey && !isToday(s.startedAt)) {
       // If nothing was logged, discard instead of saving empty history.
       if (!s.sets?.length) {
@@ -320,7 +320,6 @@ async function resetAllData() {
 let restTimer = { until: 0, durationSec: 0, label: "" };
 let restTicker = 0;
 
-let workoutTimer = { dayKey: "", startedAt: 0 };
 let workoutTicker = 0;
 
 function formatElapsed(ms) {
@@ -332,18 +331,16 @@ function formatElapsed(ms) {
   return hh > 0 ? `${hh}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-function ensureWorkoutTimer(dayKey, startedAt) {
-  workoutTimer = { dayKey, startedAt };
+function ensureWorkoutTimer(startedAt) {
   if (workoutTicker) clearInterval(workoutTicker);
   workoutTicker = setInterval(() => {
     const el = document.getElementById("workout-elapsed");
     if (!el) return;
-    el.textContent = formatElapsed(Date.now() - workoutTimer.startedAt);
+    el.textContent = formatElapsed(Date.now() - startedAt);
   }, 250);
 }
 
 function stopWorkoutTimer() {
-  workoutTimer = { dayKey: "", startedAt: 0 };
   if (workoutTicker) clearInterval(workoutTicker);
   workoutTicker = 0;
 }
@@ -473,9 +470,8 @@ function render() {
       const active = activeSessionToday(state, day.dayKey);
       const activeAny = activeSessionAny(state);
       const locked = activeAny && activeAny.dayKey !== day.dayKey;
-      const dayStart = workoutTimer.dayKey === day.dayKey && workoutTimer.startedAt ? workoutTimer.startedAt : null;
-      const startedAt = active?.startedAt ?? dayStart ?? Date.now();
-      ensureWorkoutTimer(day.dayKey, startedAt);
+      if (active?.startedAt) ensureWorkoutTimer(active.startedAt);
+      else stopWorkoutTimer();
       let body = "";
       if (!active) {
         body = locked
@@ -492,28 +488,10 @@ function render() {
             </div>
             <p class="muted" style="margin:0">Finish the active workout before starting another day.</p>
           </div>
-          <div class="card stack" style="margin-top:10px">
-            <div class="kv">
-              <div>
-                <div class="k">Workout timer</div>
-                <div class="v"><span id="workout-elapsed">${escapeHtml(formatElapsed(Date.now() - startedAt))}</span></div>
-              </div>
-              <div style="text-align:right" class="muted">Started on open</div>
-            </div>
-          </div>
           <p class="muted">Begins today’s session for this day. Older unfinished sessions are closed automatically.</p>`
           : `
           <div class="toolbar" style="justify-content:flex-start">
             <button type="button" class="btn btn-primary" data-action="start">Start workout</button>
-          </div>
-          <div class="card stack" style="margin-top:10px">
-            <div class="kv">
-              <div>
-                <div class="k">Workout timer</div>
-                <div class="v"><span id="workout-elapsed">${escapeHtml(formatElapsed(Date.now() - startedAt))}</span></div>
-              </div>
-              <div style="text-align:right" class="muted">Started on open</div>
-            </div>
           </div>
           <p class="muted">Begins today’s session for this day. Older unfinished sessions are closed automatically.</p>`;
       } else {
@@ -525,9 +503,11 @@ function render() {
             <div class="kv">
               <div>
                 <div class="k">Workout timer</div>
-                <div class="v"><span id="workout-elapsed">${escapeHtml(formatElapsed(Date.now() - startedAt))}</span></div>
+                <div class="v"><span id="workout-elapsed">${escapeHtml(
+                  formatElapsed(Date.now() - active.startedAt)
+                )}</span></div>
               </div>
-              <div style="text-align:right" class="muted">${escapeHtml(new Date(startedAt).toLocaleTimeString())}</div>
+              <div style="text-align:right" class="muted">${escapeHtml(new Date(active.startedAt).toLocaleTimeString())}</div>
             </div>
           </div>
           <div class="section-title">Exercises</div>
@@ -700,7 +680,9 @@ function render() {
         <a class="card" href="#session/${encodeURIComponent(s.id)}">
           <h2>${escapeHtml(s.dayKey)}</h2>
           <p>${escapeHtml(s.dayTitleSnapshot)}</p>
-          <p class="meta" style="margin-top:8px">${new Date(s.startedAt).toLocaleString()}</p>
+          <p class="meta" style="margin-top:8px">${new Date(s.startedAt).toLocaleString()}${
+            s.finishedAt ? ` · ${escapeHtml(formatElapsed(s.finishedAt - s.startedAt))}` : ""
+          }</p>
         </a>`
         )
         .join("")}</div>`;
@@ -729,6 +711,13 @@ function render() {
         <div class="card stack">
           <p class="muted" style="margin:0">Day: <strong style="color:var(--text)">${escapeHtml(s.dayKey)}</strong></p>
           <p class="muted" style="margin:0">Started: ${new Date(s.startedAt).toLocaleString()}</p>
+          ${
+            s.finishedAt
+              ? `<p class="muted" style="margin:0">Duration: <strong style="color:var(--text)">${escapeHtml(
+                  formatElapsed(s.finishedAt - s.startedAt)
+                )}</strong></p>`
+              : ""
+          }
         </div>
         ${order
           .map(
@@ -785,13 +774,13 @@ function wireHandlers() {
       render();
       return;
     }
-    startWorkout(state, day, workoutTimer.dayKey === day.dayKey ? workoutTimer.startedAt : undefined);
+    startWorkout(state, day);
     render();
   });
   document.querySelector("[data-action='finish']")?.addEventListener("click", () => {
     const active = activeSessionToday(state, route.dayKey);
     if (active) finishWorkout(state, active.id);
-    render();
+    location.hash = "#train";
   });
   document.querySelector("[data-action='add-set']")?.addEventListener("click", () => {
     const day = getDay(state, route.dayKey);
@@ -854,7 +843,14 @@ function init() {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    // Ensure users pick up new app.js/styles/sw changes promptly.
+    location.reload();
+  });
+  navigator.serviceWorker
+    .register("./sw-v6.js", { updateViaCache: "none" })
+    .then((reg) => reg.update().catch(() => {}))
+    .catch(() => {});
 }
 
 init();
