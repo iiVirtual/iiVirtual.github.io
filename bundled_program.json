@@ -7,11 +7,11 @@
         { "category": "Main", "exerciseName": "Barbell Bench Press", "prescribedSets": "3", "prescribedRepRange": "5–8" },
         { "category": "Main", "exerciseName": "Lat Pulldown", "prescribedSets": "3", "prescribedRepRange": "8–12" },
         { "category": "Secondary", "exerciseName": "Incline DB Press", "prescribedSets": "2–3", "prescribedRepRange": "8–12" },
-        { "category": "Secondary", "exerciseName": "Barbell Row", "prescribedSets": "2", "prescribedRepRange": "8–12" },
+        { "category": "Secondary", "exerciseName": "DB Row", "prescribedSets": "2", "prescribedRepRange": "8–12" },
         { "category": "Isolation (Superset)", "exerciseName": "Cable Fly", "prescribedSets": "2", "prescribedRepRange": "12–15" },
         { "category": "Isolation (Superset)", "exerciseName": "Straight Arm Pulldown", "prescribedSets": "2", "prescribedRepRange": "12–15" },
         { "category": "Arms (Superset)", "exerciseName": "Pushdown", "prescribedSets": "2", "prescribedRepRange": "10–15" },
-        { "category": "Arms (Superset)", "exerciseName": "EZ Curl", "prescribedSets": "2", "prescribedRepRange": "10–15" }
+        { "category": "Arms (Superset)", "exerciseName": "DB Curl", "prescribedSets": "2", "prescribedRepRange": "10–15" }
       ]
     },
     {
@@ -38,8 +38,8 @@
         { "category": "Delts", "exerciseName": "Rear Delt Fly", "prescribedSets": "3", "prescribedRepRange": "12–15" },
         { "category": "Chest Touch", "exerciseName": "Incline Barbell Press", "prescribedSets": "2", "prescribedRepRange": "6–10" },
         { "category": "Chest Touch", "exerciseName": "Cable Fly", "prescribedSets": "2", "prescribedRepRange": "12–15" },
-        { "category": "Arms (Superset)", "exerciseName": "Triceps", "prescribedSets": "3", "prescribedRepRange": "10–15" },
-        { "category": "Arms (Superset)", "exerciseName": "Biceps", "prescribedSets": "3", "prescribedRepRange": "10–15" }
+        { "category": "Arms (Superset)", "exerciseName": "EZ SkullCrushers", "prescribedSets": "3", "prescribedRepRange": "10–15" },
+        { "category": "Arms (Superset)", "exerciseName": "EZ Bar Curl", "prescribedSets": "3", "prescribedRepRange": "10–15" }
       ]
     }
   ]
