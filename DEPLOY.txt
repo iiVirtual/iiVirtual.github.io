@@ -1,0 +1,25 @@
+Hypertrophy PWA — deploy to static hosting (e.g. Porkbun, GitHub Pages)
+
+GitHub Pages (recommended)
+  1. Push this repo to GitHub.
+  2. Repo → Settings → Pages → Build and deployment → Source: GitHub Actions.
+  3. Push to main or master (or use Actions → Deploy to GitHub Pages → Run workflow). The workflow
+     publishes only the PWA files (not FOR-FILEZILLA or standalone build artifacts).
+  4. Site URL: https://<username>.github.io/<repository>/
+     Paths are relative; hash routing (#train, etc.) works under a project URL.
+  5. Root includes .nojekyll so Jekyll does not skip any files.
+
+Option A — Full PWA (offline cache after first load)
+  Upload the whole folder: index.html, app.js, styles.css, manifest.json, sw.js,
+  bundled_program.json, icons/icon.svg
+
+Option B — Light “standalone” (4 files)
+  hypertrophy-standalone.html, app-standalone.js, styles.css, bundled_program.json
+  (Keeps one small HTML file; program loads from bundled_program.json.)
+  Open the .html over HTTPS.
+
+Option C — One HTML file only (run on your computer)
+  python3 build-standalone.py
+  Upload hypertrophy-all-in-one.html
+
+Data is stored in the browser (localStorage) per site URL. No server required.
