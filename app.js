@@ -80,6 +80,10 @@ function openSessionsForDay(state, dayKey) {
   return state.sessions.filter((s) => !s.completed && s.dayKey === dayKey);
 }
 
+function activeSessionAny(state) {
+  return [...state.sessions].reverse().find((s) => !s.completed) || null;
+}
+
 function activeSessionToday(state, dayKey) {
   return openSessionsForDay(state, dayKey).find((s) => isToday(s.startedAt));
 }
@@ -87,17 +91,24 @@ function activeSessionToday(state, dayKey) {
 function closeStaleSessions(state, dayKey) {
   for (const s of state.sessions) {
     if (!s.completed && s.dayKey === dayKey && !isToday(s.startedAt)) {
-      s.completed = true;
-      s.finishedAt = Date.now();
+      // If nothing was logged, discard instead of saving empty history.
+      if (!s.sets?.length) {
+        state.sessions = state.sessions.filter((x) => x.id !== s.id);
+      } else {
+        s.completed = true;
+        s.finishedAt = Date.now();
+      }
     }
   }
 }
 
-function startWorkout(state, day) {
+function startWorkout(state, day, startedAt) {
+  const other = activeSessionAny(state);
+  if (other && other.dayKey !== day.dayKey) return null;
   closeStaleSessions(state, day.dayKey);
   const session = {
     id: uid(),
-    startedAt: Date.now(),
+    startedAt: startedAt ?? Date.now(),
     dayKey: day.dayKey,
     dayTitleSnapshot: day.dayTitle,
     completed: false,
@@ -111,6 +122,12 @@ function startWorkout(state, day) {
 function finishWorkout(state, sessionId) {
   const s = state.sessions.find((x) => x.id === sessionId);
   if (s) {
+    // Don't save empty workouts into history/progress.
+    if (!s.sets?.length) {
+      state.sessions = state.sessions.filter((x) => x.id !== s.id);
+      saveState(state);
+      return;
+    }
     s.completed = true;
     s.finishedAt = Date.now();
     saveState(state);
@@ -303,6 +320,34 @@ async function resetAllData() {
 let restTimer = { until: 0, durationSec: 0, label: "" };
 let restTicker = 0;
 
+let workoutTimer = { dayKey: "", startedAt: 0 };
+let workoutTicker = 0;
+
+function formatElapsed(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  const hh = Math.floor(m / 60);
+  const mm = String(m % 60).padStart(2, "0");
+  return hh > 0 ? `${hh}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+function ensureWorkoutTimer(dayKey, startedAt) {
+  workoutTimer = { dayKey, startedAt };
+  if (workoutTicker) clearInterval(workoutTicker);
+  workoutTicker = setInterval(() => {
+    const el = document.getElementById("workout-elapsed");
+    if (!el) return;
+    el.textContent = formatElapsed(Date.now() - workoutTimer.startedAt);
+  }, 250);
+}
+
+function stopWorkoutTimer() {
+  workoutTimer = { dayKey: "", startedAt: 0 };
+  if (workoutTicker) clearInterval(workoutTicker);
+  workoutTicker = 0;
+}
+
 function restSecondsLeft() {
   if (!restTimer.until) return 0;
   return Math.max(0, Math.ceil((restTimer.until - Date.now()) / 1000));
@@ -371,6 +416,8 @@ function render() {
   const histTab = route.name === "history" || route.name === "session";
   const progTab = route.name === "progress" || route.name === "progress-ex";
 
+  if (route.name !== "day") stopWorkoutTimer();
+
   let header = "";
   let main = "";
 
@@ -384,11 +431,26 @@ function render() {
         <div class="empty"><strong>No program loaded</strong>Open over HTTP(S) so bundled_program.json can load, or refresh.</div>
       `;
     } else {
+      const activeAny = activeSessionAny(state);
+      const banner = activeAny
+        ? `<div class="card stack" style="margin-bottom:10px">
+            <div class="kv">
+              <div>
+                <div class="k">Workout in progress</div>
+                <div class="v">${escapeHtml(activeAny.dayKey)}</div>
+              </div>
+              <div style="text-align:right">
+                <a class="btn btn-ghost" href="#day/${encodeURIComponent(activeAny.dayKey)}">Resume</a>
+              </div>
+            </div>
+          </div>`
+        : "";
       main = `
         <div class="toolbar" style="justify-content:space-between">
           <div></div>
           <button type="button" class="btn btn-danger" data-action="reset">Reset data</button>
         </div>
+        ${banner}
         <div class="card-list">${state.programDays
           .sort((a, b) => a.sortOrder - b.sortOrder)
           .map(
@@ -409,17 +471,64 @@ function render() {
     } else {
       header = `<h1>${escapeHtml(day.dayKey)}</h1>`;
       const active = activeSessionToday(state, day.dayKey);
+      const activeAny = activeSessionAny(state);
+      const locked = activeAny && activeAny.dayKey !== day.dayKey;
+      const dayStart = workoutTimer.dayKey === day.dayKey && workoutTimer.startedAt ? workoutTimer.startedAt : null;
+      const startedAt = active?.startedAt ?? dayStart ?? Date.now();
+      ensureWorkoutTimer(day.dayKey, startedAt);
       let body = "";
       if (!active) {
-        body = `
+        body = locked
+          ? `
+          <div class="card stack" style="margin-top:10px">
+            <div class="kv">
+              <div>
+                <div class="k">Workout already running</div>
+                <div class="v">${escapeHtml(activeAny.dayKey)}</div>
+              </div>
+              <div style="text-align:right">
+                <a class="btn btn-primary" href="#day/${encodeURIComponent(activeAny.dayKey)}">Go to active</a>
+              </div>
+            </div>
+            <p class="muted" style="margin:0">Finish the active workout before starting another day.</p>
+          </div>
+          <div class="card stack" style="margin-top:10px">
+            <div class="kv">
+              <div>
+                <div class="k">Workout timer</div>
+                <div class="v"><span id="workout-elapsed">${escapeHtml(formatElapsed(Date.now() - startedAt))}</span></div>
+              </div>
+              <div style="text-align:right" class="muted">Started on open</div>
+            </div>
+          </div>
+          <p class="muted">Begins today’s session for this day. Older unfinished sessions are closed automatically.</p>`
+          : `
           <div class="toolbar" style="justify-content:flex-start">
             <button type="button" class="btn btn-primary" data-action="start">Start workout</button>
+          </div>
+          <div class="card stack" style="margin-top:10px">
+            <div class="kv">
+              <div>
+                <div class="k">Workout timer</div>
+                <div class="v"><span id="workout-elapsed">${escapeHtml(formatElapsed(Date.now() - startedAt))}</span></div>
+              </div>
+              <div style="text-align:right" class="muted">Started on open</div>
+            </div>
           </div>
           <p class="muted">Begins today’s session for this day. Older unfinished sessions are closed automatically.</p>`;
       } else {
         body = `
           <div class="toolbar">
             <button type="button" class="btn btn-ghost" data-action="finish">Finish workout</button>
+          </div>
+          <div class="card stack" style="margin-bottom:10px">
+            <div class="kv">
+              <div>
+                <div class="k">Workout timer</div>
+                <div class="v"><span id="workout-elapsed">${escapeHtml(formatElapsed(Date.now() - startedAt))}</span></div>
+              </div>
+              <div style="text-align:right" class="muted">${escapeHtml(new Date(startedAt).toLocaleTimeString())}</div>
+            </div>
           </div>
           <div class="section-title">Exercises</div>
           <div class="card-list">
@@ -505,7 +614,12 @@ function render() {
           <input type="number" inputmode="numeric" id="inp-reps" placeholder="Reps" min="1" step="1" />
           <input type="number" inputmode="decimal" id="inp-weight" placeholder="Weight (lb)" min="0" step="0.5" />
         </div>
-        <button type="button" class="btn btn-primary stack" style="width:100%;margin-top:12px" data-action="add-set">Add set</button>
+        <div class="toolbar" style="justify-content:space-between;margin-top:12px">
+          <button type="button" class="btn btn-primary" style="flex:1" data-action="add-set">Add set</button>
+          <button type="button" class="btn btn-ghost" style="flex:1" data-action="repeat-set" ${
+            setsForLine(session, line.id).length ? "" : "disabled"
+          }>Repeat last</button>
+        </div>
         <div class="card stack" style="margin-top:10px">
           <div class="kv">
             <div>
@@ -663,7 +777,15 @@ function wireHandlers() {
 
   document.querySelector("[data-action='start']")?.addEventListener("click", () => {
     const day = getDay(state, route.dayKey);
-    if (day) startWorkout(state, day);
+    if (!day) return;
+    const other = activeSessionAny(state);
+    if (other && other.dayKey !== day.dayKey) {
+      alert(`Finish your active workout (${other.dayKey}) first.`);
+      location.hash = `#day/${encodeURIComponent(other.dayKey)}`;
+      render();
+      return;
+    }
+    startWorkout(state, day, workoutTimer.dayKey === day.dayKey ? workoutTimer.startedAt : undefined);
     render();
   });
   document.querySelector("[data-action='finish']")?.addEventListener("click", () => {
@@ -684,6 +806,17 @@ function wireHandlers() {
     addSet(state, session.id, line, reps, weightLb);
     repsEl.value = "";
     wEl.value = "";
+    startRestTimer(line);
+    render();
+  });
+  document.querySelector("[data-action='repeat-set']")?.addEventListener("click", () => {
+    const day = getDay(state, route.dayKey);
+    const line = day?.lines.find((l) => l.id === route.lineId);
+    const session = day ? activeSessionToday(state, day.dayKey) : null;
+    if (!line || !session) return;
+    const prev = setsForLine(session, line.id).slice(-1)[0];
+    if (!prev) return;
+    addSet(state, session.id, line, prev.reps, prev.weightLb);
     startRestTimer(line);
     render();
   });
