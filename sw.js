@@ -1,4 +1,4 @@
-const CACHE = "hypertrophy-v1";
+const CACHE = "hypertrophy-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const ASSETS = [
   "./styles.css",
   "./manifest.json",
   "./bundled_program.json",
+  "./assets/bg.png",
   "./icons/icon.svg",
 ];
 
@@ -35,16 +36,19 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const { request } = e;
   if (request.method !== "GET") return;
+  if (new URL(request.url).origin !== self.location.origin) return;
   e.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
-      return fetch(request).then((res) => {
-        const copy = res.clone();
-        if (res.ok) {
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-        }
-        return res;
-      });
+      return fetch(request)
+        .then((res) => {
+          const copy = res.clone();
+          if (res.ok) {
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => caches.match("./index.html"));
     })
   );
 });
