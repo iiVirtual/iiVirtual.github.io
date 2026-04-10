@@ -71,11 +71,41 @@ header.top .header-row h1 {
   min-width: 0;
 }
 
-header.top .calc-menu-btn {
+header.top .header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+header.top .header-tool-btn {
   min-height: 40px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-size: 0.85rem;
+}
+
+.face-canvas-wrap {
+  width: 100%;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--surface2);
+  background: var(--surface);
+  touch-action: none;
+}
+
+.face-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: top;
+  cursor: crosshair;
+}
+
+.modal.face-modal {
+  max-width: min(560px, 100%);
+  max-height: min(92vh, 900px);
+  overflow-y: auto;
 }
 
 main {

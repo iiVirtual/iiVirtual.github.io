@@ -202,29 +202,43 @@ function workingWeightFrom1RM(oneRmLb, reps) {
   return om / (1 + r / 30);
 }
 
-function exerciseHistoryPoints(state, exerciseName) {
-  const out = [];
+/** Per calendar day: best est. 1RM from logged sets + mean weight (sets with weight &gt; 0). */
+function exerciseChartPoints(state, exerciseName) {
   const name = String(exerciseName || "");
-  for (const s of state.sessions) {
-    if (!s.completed && !isToday(s.startedAt)) continue;
-    let best = null;
-    for (const row of s.sets || []) {
-      if (row.exerciseNameSnapshot !== name) continue;
-      const est = estimate1RM(row.weightLb, row.reps);
-      if (!est) continue;
-      if (!best || est > best) best = est;
-    }
-    if (best) out.push({ ts: s.startedAt, est1rm: best });
-  }
-  out.sort((a, b) => a.ts - b.ts);
-  // De-dupe by day (keep best).
   const byDay = new Map();
-  for (const p of out) {
-    const d = todayStart(p.ts);
-    const cur = byDay.get(d);
-    if (!cur || p.est1rm > cur.est1rm) byDay.set(d, { ts: d, est1rm: p.est1rm });
+
+  for (const s of state.sessions) {
+    if (!sessionIncludedForWeightMetrics(s)) continue;
+    const rows = (s.sets || []).filter((r) => r.exerciseNameSnapshot === name);
+    if (!rows.length) continue;
+    const d = todayStart(s.startedAt);
+    const cell = byDay.get(d) || { best1: null, sumW: 0, countW: 0 };
+    for (const row of rows) {
+      const w = Number(row.weightLb);
+      if (w > 0) {
+        cell.sumW += w;
+        cell.countW += 1;
+        const est = estimate1RM(w, row.reps);
+        if (est != null && (!cell.best1 || est > cell.best1)) cell.best1 = est;
+      }
+    }
+    byDay.set(d, cell);
   }
-  return [...byDay.values()].sort((a, b) => a.ts - b.ts);
+
+  return [...byDay.entries()]
+    .map(([ts, v]) => ({
+      ts,
+      est1rm: v.best1,
+      avgWeight: v.countW > 0 ? v.sumW / v.countW : null,
+    }))
+    .filter((p) => p.est1rm != null || p.avgWeight != null)
+    .sort((a, b) => a.ts - b.ts);
+}
+
+function exerciseHistoryPoints(state, exerciseName) {
+  return exerciseChartPoints(state, exerciseName)
+    .filter((p) => p.est1rm != null)
+    .map((p) => ({ ts: p.ts, est1rm: p.est1rm }));
 }
 
 function allExerciseNames(state) {
@@ -286,42 +300,80 @@ function trendPct(points) {
   return ((b - a) / a) * 100;
 }
 
-function svgLineChart(points, { width = 520, height = 160, pad = 12 } = {}) {
+const CHART_AVG_COLOR = "#7dd3fc";
+
+function svgLineChart(points, { width = 520, height = 176, pad = 12 } = {}) {
   if (!points?.length) return "";
   const pts = points.slice(-12);
-  const minY = Math.min(...pts.map((p) => p.est1rm));
-  const maxY = Math.max(...pts.map((p) => p.est1rm));
+  const values = [];
+  for (const p of pts) {
+    if (p.est1rm != null) values.push(p.est1rm);
+    if (p.avgWeight != null) values.push(p.avgWeight);
+  }
+  if (!values.length) return "";
+  const minY = Math.min(...values);
+  const maxY = Math.max(...values);
   const span = Math.max(1e-6, maxY - minY);
   const w = width;
   const h = height;
   const x0 = pad;
-  const y0 = pad;
+  const y0 = pad + 18;
   const x1 = w - pad;
-  const y1 = h - pad;
+  const y1 = h - pad - 22;
 
-  const xy = pts.map((p, i) => {
-    const x = x0 + (pts.length === 1 ? 0 : (i / (pts.length - 1)) * (x1 - x0));
-    const y = y1 - ((p.est1rm - minY) / span) * (y1 - y0);
-    return { x, y, p };
-  });
-  const d = xy
-    .map((q, i) => `${i === 0 ? "M" : "L"}${q.x.toFixed(1)},${q.y.toFixed(1)}`)
-    .join(" ");
-  const dots = xy
-    .map(
-      (q) =>
-        `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="3.2" fill="var(--accent)" opacity="0.95"></circle>`
-    )
-    .join("");
+  const xAt = (i) => x0 + (pts.length === 1 ? 0 : (i / (pts.length - 1)) * (x1 - x0));
+  const yAt = (v) => y1 - ((v - minY) / span) * (y1 - y0);
+
+  function pathFor(key) {
+    let d = "";
+    let penUp = true;
+    for (let i = 0; i < pts.length; i++) {
+      const v = pts[i][key];
+      if (v == null || !Number.isFinite(v)) {
+        penUp = true;
+        continue;
+      }
+      const x = xAt(i);
+      const y = yAt(v);
+      d += penUp ? `M${x.toFixed(1)},${y.toFixed(1)}` : `L${x.toFixed(1)},${y.toFixed(1)}`;
+      penUp = false;
+    }
+    return d;
+  }
+
+  function dotsFor(key, fill) {
+    return pts
+      .map((p, i) => {
+        const v = p[key];
+        if (v == null || !Number.isFinite(v)) return "";
+        const x = xAt(i);
+        const y = yAt(v);
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" fill="${fill}" opacity="0.95"></circle>`;
+      })
+      .join("");
+  }
+
+  const d1 = pathFor("est1rm");
+  const d2 = pathFor("avgWeight");
   const last = pts[pts.length - 1];
-  const label = `${Math.round(last.est1rm)} lb est. 1RM`;
+  const last1 = last.est1rm != null ? `${Math.round(last.est1rm)} lb 1RM` : "";
+  const last2 = last.avgWeight != null ? `${formatWeight(last.avgWeight)} lb avg` : "";
+  const summary = [last1, last2].filter(Boolean).join(" · ");
+
   return `
-    <svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Estimated 1RM over time">
+    <svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Estimated 1RM and average weight over time">
       <rect x="0" y="0" width="${w}" height="${h}" rx="12" fill="color-mix(in srgb, var(--surface) 86%, transparent)" stroke="var(--surface2)"></rect>
-      <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
-      ${dots}
-      <text x="${pad}" y="${pad + 14}" fill="var(--muted)" font-size="12">${escapeHtml(label)}</text>
-      <text x="${pad}" y="${h - pad}" fill="var(--muted)" font-size="11">${escapeHtml(
+      <text x="${pad}" y="${pad + 12}" fill="var(--muted)" font-size="10">
+        <tspan fill="var(--accent)" font-weight="650">1RM</tspan>
+        <tspan fill="var(--muted)"> · </tspan>
+        <tspan fill="${CHART_AVG_COLOR}" font-weight="650">Avg weight</tspan>
+      </text>
+      ${d1 ? `<path d="${d1}" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}
+      ${d2 ? `<path d="${d2}" fill="none" stroke="${CHART_AVG_COLOR}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}
+      ${dotsFor("est1rm", "var(--accent)")}
+      ${dotsFor("avgWeight", CHART_AVG_COLOR)}
+      <text x="${pad}" y="${y0 - 4}" fill="var(--muted)" font-size="11">${escapeHtml(summary || "—")}</text>
+      <text x="${pad}" y="${h - 8}" fill="var(--muted)" font-size="11">${escapeHtml(
         new Date(last.ts).toLocaleDateString()
       )}</text>
     </svg>
@@ -341,9 +393,13 @@ let ui = {
   importConfirmOpen: false,
   importPayload: null,
   calcOpen: false,
+  faceOpen: false,
   programConfirmOpen: false,
   programImportData: null,
 };
+
+/** Face proportion tool (Progress tab): image + landmark points in canvas pixels */
+let faceUi = { img: null, points: [] };
 
 function parseRoute() {
   const h = (location.hash || "#train").slice(1);
@@ -523,25 +579,46 @@ function stopRestTimer() {
 function suggestProgression(line, points) {
   const rr = parseRepRange(line?.prescribedRepRange);
   if (!rr) return null;
-  const last = points?.[points.length - 1];
-  if (!last) return null;
+  if (!points?.length) return null;
 
-  // Use most recent session sets for this exercise if available.
   const name = line.exerciseName;
-  const recentSession = [...state.sessions].sort((a, b) => b.startedAt - a.startedAt).find((s) =>
-    (s.sets || []).some((r) => r.exerciseNameSnapshot === name)
-  );
-  const rows = (recentSession?.sets || []).filter((r) => r.exerciseNameSnapshot === name);
+  const recentSession = [...state.sessions]
+    .sort((a, b) => b.startedAt - a.startedAt)
+    .find(
+      (s) =>
+        sessionIncludedForWeightMetrics(s) && (s.sets || []).some((r) => r.exerciseNameSnapshot === name)
+    );
+  const rows = (recentSession?.sets || []).filter((r) => r.exerciseNameSnapshot === name && r.weightLb > 0);
   if (!rows.length) return null;
-
-  // Find the heaviest weight that still hit the top of the rep range.
-  const winners = rows.filter((r) => r.reps >= rr.hi && r.weightLb > 0);
-  const best = winners.sort((a, b) => b.weightLb - a.weightLb)[0];
-  if (!best) return `Aim to hit ${rr.hi} reps on at least one set before increasing weight.`;
 
   const nm = `${name}`.toLowerCase();
   const step = /(squat|deadlift|rdl|hip thrust|leg press)/.test(nm) ? 10 : 5;
-  return `You’ve hit ${rr.hi}+ reps. Next time, try +${step} lb (keep reps ≥ ${rr.lo}).`;
+
+  const atOrAboveLo = rows.filter((r) => r.reps >= rr.lo);
+  const basePool = atOrAboveLo.length ? atOrAboveLo : rows;
+  const baseMax = Math.max(...basePool.map((r) => r.weightLb));
+  const baseAvg = basePool.reduce((a, r) => a + r.weightLb, 0) / basePool.length;
+
+  const hitTop = rows.some((r) => r.reps >= rr.hi);
+  const topTier = rows.filter((r) => r.reps >= rr.hi && r.weightLb > 0);
+  const weightAtTop = topTier.length ? Math.max(...topTier.map((r) => r.weightLb)) : null;
+
+  const roundSuggest = (lb) => Math.round(lb * 2) / 2;
+
+  if (hitTop && weightAtTop != null) {
+    const suggested = roundSuggest(weightAtTop + step);
+    return `Suggested working weight: ${formatWeight(suggested)} lb (last session you hit ${rr.hi}+ reps at ${formatWeight(
+      weightAtTop
+    )} lb).`;
+  }
+
+  const suggestedHold = roundSuggest(baseMax);
+  const allBelowLo = rows.every((r) => r.reps < rr.lo);
+  if (allBelowLo) {
+    return `Suggested working weight: ${formatWeight(suggestedHold)} lb — reps were under ${rr.lo}; same load and push for ${rr.lo}–${rr.hi}, or reduce slightly if form breaks down.`;
+  }
+
+  return `Suggested working weight: ${formatWeight(suggestedHold)} lb — hold here until you reach ${rr.hi}+ reps on at least one set, then the target will move up.`;
 }
 
 function render() {
@@ -552,7 +629,11 @@ function render() {
   const progTab = route.name === "progress" || route.name === "progress-ex";
   const settingsTab = route.name === "settings";
 
-  if (route.name !== "progress") ui.calcOpen = false;
+  if (route.name !== "progress") {
+    ui.calcOpen = false;
+    ui.faceOpen = false;
+    faceUi = { img: null, points: [] };
+  }
 
   if (route.name !== "day") stopWorkoutTimer();
 
@@ -753,7 +834,7 @@ function render() {
             line.exerciseName
           )}">View chart</a>` : `<div class="muted" style="font-size:0.85rem">Log a few sets to see progression.</div>`}
         </div>
-        ${sugg ? `<div class="section-title">Suggestion</div><div class="card"><p class="muted" style="margin:0">${escapeHtml(
+        ${sugg ? `<div class="section-title">Suggested weight</div><div class="card"><p class="muted" style="margin:0">${escapeHtml(
           sugg
         )}</p></div>` : ""}
         <div class="section-title">Logged sets</div>
@@ -789,7 +870,10 @@ function render() {
     header = `
       <div class="header-row">
         <h1>Progress</h1>
-        <button type="button" class="btn btn-ghost calc-menu-btn" data-action="calc-menu" aria-haspopup="dialog">Calc</button>
+        <div class="header-actions">
+          <button type="button" class="btn btn-ghost header-tool-btn" data-action="face-menu" aria-haspopup="dialog" title="Face proportions">Face</button>
+          <button type="button" class="btn btn-ghost header-tool-btn" data-action="calc-menu" aria-haspopup="dialog">Calc</button>
+        </div>
       </div>`;
     const names = allExerciseNames(state);
     if (!names.length) {
@@ -831,11 +915,12 @@ function render() {
   } else if (route.name === "progress-ex") {
     header = "<h1>Progress</h1>";
     const name = route.exerciseName;
+    const chartPts = exerciseChartPoints(state, name);
     const pts = exerciseHistoryPoints(state, name);
-    if (!pts.length) {
+    if (!chartPts.length) {
       main = `<div class="empty">No data for this exercise yet.</div><a class="back-link" href="#progress">← Progress</a>`;
     } else {
-      const best = Math.max(...pts.map((p) => p.est1rm));
+      const best = pts.length ? Math.max(...pts.map((p) => p.est1rm)) : null;
       const t = trendPct(pts);
       const avgW = avgWeightExercise(state, name);
       const lastW = lastFinishedWorkoutWeightAvg(state, name);
@@ -846,7 +931,7 @@ function render() {
           <div class="kv">
             <div>
               <div class="k">Best est. 1RM</div>
-              <div class="v">${Math.round(best)} lb</div>
+              <div class="v">${best != null ? `${Math.round(best)} lb` : "—"}</div>
             </div>
             <div style="text-align:right">
               <div class="k">Trend</div>
@@ -874,8 +959,8 @@ function render() {
               }
             </div>
           </div>
-          ${svgLineChart(pts)}
-          <p class="muted" style="margin:0;font-size:0.85rem">Based on your logged sets using an estimated 1RM model.</p>
+          ${svgLineChart(chartPts)}
+          <p class="muted" style="margin:0;font-size:0.85rem">Orange: estimated 1RM (Epley). Cyan: average weight logged that day.</p>
         </div>
       `;
     }
@@ -1024,6 +1109,30 @@ function render() {
     `
       : "";
 
+  const faceModal = ui.faceOpen
+    ? `
+      <div class="modal-backdrop" data-action="face-close" role="presentation">
+        <div class="modal face-modal" role="dialog" aria-modal="true" aria-label="Face proportions">
+          <div class="section-title" style="margin:0 0 8px">Face proportions</div>
+          <p class="muted" style="margin:0 0 12px">Load a selfie, then tap the image to place numbered points. Segment lengths are in <strong style="color:var(--text)">pixels</strong> — compare photos taken at similar distance. Ratios are compared to φ ≈ 1.618.</p>
+          <div class="toolbar" style="justify-content:flex-start;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <input type="file" id="face-file-cam" accept="image/*" capture="user" style="display:none" />
+            <input type="file" id="face-file" accept="image/*" style="display:none" />
+            <button type="button" class="btn btn-primary header-tool-btn" data-action="face-camera">Camera</button>
+            <button type="button" class="btn btn-ghost header-tool-btn" data-action="face-library">Library</button>
+            <button type="button" class="btn btn-ghost header-tool-btn" data-action="face-clear">Clear points</button>
+            <button type="button" class="btn btn-ghost header-tool-btn" data-action="face-undo">Undo</button>
+          </div>
+          <div class="face-canvas-wrap">
+            <canvas id="face-canvas" width="400" height="300"></canvas>
+          </div>
+          <div id="face-measures" class="muted" style="margin-top:12px;font-size:0.85rem;line-height:1.5"></div>
+          <button type="button" class="btn btn-ghost" style="width:100%;margin-top:14px" data-action="face-dismiss">Close</button>
+        </div>
+      </div>
+    `
+    : "";
+
   const calcModal = ui.calcOpen
     ? `
       <div class="modal-backdrop" data-action="calc-close" role="presentation">
@@ -1059,10 +1168,143 @@ function render() {
     ${modal}
     ${importModal}
     ${programModal}
+    ${faceModal}
     ${calcModal}
   `;
 
   wireHandlers();
+  if (ui.faceOpen) {
+    requestAnimationFrame(() => initFaceTool());
+  }
+}
+
+const PHI = 1.6180339887;
+
+function distPx(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function updateFaceMeasures() {
+  const el = document.getElementById("face-measures");
+  if (!el) return;
+  const pts = faceUi.points;
+  if (!faceUi.img) {
+    el.innerHTML = "";
+    return;
+  }
+  if (pts.length < 2) {
+    el.innerHTML =
+      pts.length === 0
+        ? "<p style=\"margin:0\">Tap the image to place numbered points.</p>"
+        : "<p style=\"margin:0\">Add another point to measure a segment.</p>";
+    return;
+  }
+  const segs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    segs.push({ a: i + 1, b: i + 2, d: distPx(pts[i], pts[i + 1]) });
+  }
+  let html = `<div class="section-title" style="margin:0 0 6px">Segments (px)</div>`;
+  segs.forEach((s) => {
+    html += `<div>Points ${s.a} → ${s.b}: <strong style="color:var(--text)">${s.d.toFixed(1)} px</strong></div>`;
+  });
+  if (segs.length >= 2) {
+    const r = segs[0].d / segs[1].d;
+    html += `<div style="margin-top:10px">Ratio (seg 1 ÷ seg 2): <strong style="color:var(--text)">${r.toFixed(
+      3
+    )}</strong> · φ ≈ ${PHI.toFixed(3)} · |Δφ| ${Math.abs(r - PHI).toFixed(3)}</div>`;
+  }
+  if (segs.length >= 3) {
+    const r2 = segs[0].d / segs[2].d;
+    html += `<div style="margin-top:6px">Seg 1 ÷ seg 3: <strong style="color:var(--text)">${r2.toFixed(3)}</strong></div>`;
+  }
+  if (segs.length >= 4) {
+    const r3 = segs[0].d / segs[3].d;
+    html += `<div style="margin-top:6px">Seg 1 ÷ seg 4: <strong style="color:var(--text)">${r3.toFixed(3)}</strong></div>`;
+  }
+  el.innerHTML = html;
+}
+
+function drawFaceCanvas() {
+  const canvas = document.getElementById("face-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!faceUi.img) {
+    canvas.width = 400;
+    canvas.height = 220;
+    ctx.fillStyle = "#1f1f24";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#a1a1aa";
+    ctx.font = "14px system-ui,sans-serif";
+    ctx.fillText("Choose Camera or Library", 16, 110);
+    const hel = document.getElementById("face-measures");
+    if (hel)
+      hel.innerHTML =
+        "<p style=\"margin:0\" class=\"muted\">Load a photo, then tap the image to place points.</p>";
+    return;
+  }
+  const img = faceUi.img;
+  const MAX_W = 560;
+  const scale = Math.min(1, MAX_W / img.naturalWidth);
+  const w = Math.round(img.naturalWidth * scale);
+  const h = Math.round(img.naturalHeight * scale);
+  canvas.width = w;
+  canvas.height = h;
+  ctx.drawImage(img, 0, 0, w, h);
+  for (let i = 1; i < faceUi.points.length; i++) {
+    const a = faceUi.points[i - 1];
+    const b = faceUi.points[i];
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(234,88,12,0.55)";
+    ctx.lineWidth = 2;
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  faceUi.points.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#ea580c";
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 13px system-ui,sans-serif";
+    ctx.fillText(String(i + 1), p.x + 8, p.y - 8);
+  });
+  updateFaceMeasures();
+}
+
+function faceCanvasPointer(ev) {
+  if (!faceUi.img || !ui.faceOpen) return;
+  const canvas = document.getElementById("face-canvas");
+  if (!canvas || ev.target !== canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  const x = (ev.clientX - rect.left) * sx;
+  const y = (ev.clientY - rect.top) * sy;
+  faceUi.points.push({ x, y });
+  drawFaceCanvas();
+}
+
+function loadFaceFromFile(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      faceUi.img = img;
+      faceUi.points = [];
+      drawFaceCanvas();
+    };
+    img.src = String(reader.result || "");
+  };
+  reader.readAsDataURL(file);
+}
+
+function initFaceTool() {
+  drawFaceCanvas();
 }
 
 function runRmCalc() {
@@ -1105,7 +1347,37 @@ function runRmCalc() {
 }
 
 function wireHandlers() {
+  document.querySelector("[data-action='face-menu']")?.addEventListener("click", () => {
+    ui.calcOpen = false;
+    ui.faceOpen = true;
+    render();
+  });
+  document.querySelector("[data-action='face-close']")?.addEventListener("click", (e) => {
+    if (e.target !== e.currentTarget) return;
+    ui.faceOpen = false;
+    render();
+  });
+  document.querySelector("[data-action='face-dismiss']")?.addEventListener("click", () => {
+    ui.faceOpen = false;
+    render();
+  });
+  document.querySelector("[data-action='face-camera']")?.addEventListener("click", () => {
+    document.getElementById("face-file-cam")?.click();
+  });
+  document.querySelector("[data-action='face-library']")?.addEventListener("click", () => {
+    document.getElementById("face-file")?.click();
+  });
+  document.querySelector("[data-action='face-clear']")?.addEventListener("click", () => {
+    faceUi.points = [];
+    drawFaceCanvas();
+  });
+  document.querySelector("[data-action='face-undo']")?.addEventListener("click", () => {
+    faceUi.points.pop();
+    drawFaceCanvas();
+  });
+
   document.querySelector("[data-action='calc-menu']")?.addEventListener("click", () => {
+    ui.faceOpen = false;
     ui.calcOpen = true;
     render();
     requestAnimationFrame(() => document.getElementById("calc-1rm")?.focus());
@@ -1314,7 +1586,20 @@ function init() {
           }
         };
         reader.readAsText(f);
+        return;
       }
+      if (t.id === "face-file" || t.id === "face-file-cam") {
+        t.value = "";
+        if (!f) return;
+        loadFaceFromFile(f);
+      }
+    });
+  }
+  if (!window.__faceCanvasPointer) {
+    window.__faceCanvasPointer = true;
+    document.addEventListener("pointerdown", (e) => {
+      if (e.target?.id !== "face-canvas") return;
+      faceCanvasPointer(e);
     });
   }
   render();

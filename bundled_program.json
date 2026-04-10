@@ -2,44 +2,63 @@
   "days": [
     {
       "dayKey": "Day 1",
-      "dayTitle": "Day 1 – Upper (Chest & Back Focus)",
+      "dayTitle": "Day 1 – Upper (Chest + Delts Flow)",
       "lines": [
-        { "category": "Main", "exerciseName": "Barbell Bench Press", "prescribedSets": "3", "prescribedRepRange": "5–8" },
-        { "category": "Main", "exerciseName": "Lat Pulldown", "prescribedSets": "3", "prescribedRepRange": "8–12" },
-        { "category": "Secondary", "exerciseName": "Incline DB Press", "prescribedSets": "2–3", "prescribedRepRange": "8–12" },
-        { "category": "Secondary", "exerciseName": "DB Row", "prescribedSets": "2", "prescribedRepRange": "8–12" },
-        { "category": "Isolation (Superset)", "exerciseName": "Cable Fly", "prescribedSets": "2", "prescribedRepRange": "12–15" },
-        { "category": "Isolation (Superset)", "exerciseName": "Straight Arm Pulldown", "prescribedSets": "2", "prescribedRepRange": "12–15" },
-        { "category": "Arms (Superset)", "exerciseName": "Pushdown", "prescribedSets": "2", "prescribedRepRange": "10–15" },
-        { "category": "Arms (Superset)", "exerciseName": "DB Curl", "prescribedSets": "2", "prescribedRepRange": "10–15" }
+        { "category": "Main", "exerciseName": "Incline DB Press", "prescribedSets": "3", "prescribedRepRange": "10–15" },
+
+        { "category": "Delts (Low Cable)", "exerciseName": "Cable Lateral Raise", "prescribedSets": "4", "prescribedRepRange": "12–20" },
+
+        { "category": "Chest (Mid Cable)", "exerciseName": "Cable Fly", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+        { "category": "Chest (Superset)", "exerciseName": "Pushups", "prescribedSets": "3", "prescribedRepRange": "AMRAP" },
+
+        { "category": "Back (High Cable)", "exerciseName": "Lat Pulldown", "prescribedSets": "3", "prescribedRepRange": "10–15" },
+
+        { "category": "Arms (Superset)", "exerciseName": "Rope Pushdown", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+        { "category": "Arms (Superset)", "exerciseName": "EZ Bar Curl", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+
+        { "category": "Core", "exerciseName": "Hanging Leg Raises", "prescribedSets": "3", "prescribedRepRange": "12–15" }
       ]
     },
+
     {
       "dayKey": "Day 2",
-      "dayTitle": "Day 2 – Lower (Full Hypertrophy)",
+      "dayTitle": "Day 2 – Lower + Core Flow (Minimal Legs)",
       "lines": [
-        { "category": "Main", "exerciseName": "Barbell Squat", "prescribedSets": "3", "prescribedRepRange": "6–10" },
-        { "category": "Main", "exerciseName": "RDL", "prescribedSets": "3", "prescribedRepRange": "8–12" },
-        { "category": "Secondary", "exerciseName": "Bulgarian Split Squat", "prescribedSets": "2", "prescribedRepRange": "10–12" },
-        { "category": "Secondary", "exerciseName": "Leg Extension", "prescribedSets": "2", "prescribedRepRange": "12–15" },
-        { "category": "Hamstrings/Glutes (Superset)", "exerciseName": "Ham Curl", "prescribedSets": "2", "prescribedRepRange": "12–15" },
-        { "category": "Hamstrings/Glutes (Superset)", "exerciseName": "Hip Thrust", "prescribedSets": "2", "prescribedRepRange": "10–12" },
-        { "category": "Calves/Core (Superset)", "exerciseName": "Calf Raises", "prescribedSets": "3", "prescribedRepRange": "12–20" },
-        { "category": "Calves/Core (Superset)", "exerciseName": "Core", "prescribedSets": "2", "prescribedRepRange": "12–15" }
+        { "category": "Main", "exerciseName": "Romanian Deadlift", "prescribedSets": "3", "prescribedRepRange": "10–12" },
+
+        { "category": "Secondary", "exerciseName": "Landmine Squat", "prescribedSets": "2–3", "prescribedRepRange": "12–15" },
+
+        { "category": "Hamstrings (Low Cable)", "exerciseName": "Cable Hamstring Curl", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+
+        { "category": "Core (Low Cable)", "exerciseName": "Cable Crunch", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+
+        { "category": "Calves", "exerciseName": "Standing DB Calf Raises", "prescribedSets": "3", "prescribedRepRange": "15–20" },
+
+        { "category": "Core (Bodyweight)", "exerciseName": "Hanging Knee Raises", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+        { "category": "Core (Bodyweight)", "exerciseName": "Plank", "prescribedSets": "3", "prescribedRepRange": "45–60s" }
       ]
     },
+
     {
       "dayKey": "Day 3",
-      "dayTitle": "Day 3 – Upper (Shoulders & Arms Focus)",
+      "dayTitle": "Day 3 – Delts + Arms Flow (Aesthetic Focus)",
       "lines": [
-        { "category": "Main", "exerciseName": "DB Shoulder Press", "prescribedSets": "3", "prescribedRepRange": "6–10" },
-        { "category": "Main", "exerciseName": "Lat Pulldown or Cable Row", "prescribedSets": "3", "prescribedRepRange": "8–12" },
-        { "category": "Delts", "exerciseName": "Cable Lateral Raise", "prescribedSets": "3", "prescribedRepRange": "12–20" },
-        { "category": "Delts", "exerciseName": "Rear Delt Fly", "prescribedSets": "3", "prescribedRepRange": "12–15" },
-        { "category": "Chest Touch", "exerciseName": "Incline Barbell Press", "prescribedSets": "2", "prescribedRepRange": "6–10" },
-        { "category": "Chest Touch", "exerciseName": "Cable Fly", "prescribedSets": "2", "prescribedRepRange": "12–15" },
-        { "category": "Arms (Superset)", "exerciseName": "EZ SkullCrushers", "prescribedSets": "3", "prescribedRepRange": "10–15" },
-        { "category": "Arms (Superset)", "exerciseName": "EZ Bar Curl", "prescribedSets": "3", "prescribedRepRange": "10–15" }
+        { "category": "Main", "exerciseName": "DB Shoulder Press", "prescribedSets": "3", "prescribedRepRange": "10–15" },
+
+        { "category": "Delts (Low Cable)", "exerciseName": "Cable Lateral Raise", "prescribedSets": "4", "prescribedRepRange": "15–20" },
+
+        { "category": "Back (Mid Cable)", "exerciseName": "Cable Row", "prescribedSets": "3", "prescribedRepRange": "10–15" },
+
+        { "category": "Delts (High Cable)", "exerciseName": "Rear Delt Cable Fly", "prescribedSets": "3", "prescribedRepRange": "15–20" },
+
+        { "category": "Arms (Superset)", "exerciseName": "Rope Pushdown", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+        { "category": "Arms (Superset)", "exerciseName": "EZ Bar Curl", "prescribedSets": "3", "prescribedRepRange": "12–15" },
+
+        { "category": "Finisher", "exerciseName": "Cable Lateral Raise Dropset", "prescribedSets": "2", "prescribedRepRange": "Burnout" },
+
+        { "category": "Chest Touch", "exerciseName": "Incline DB Press", "prescribedSets": "2", "prescribedRepRange": "10–12" },
+
+        { "category": "Core", "exerciseName": "Hanging Leg Raises", "prescribedSets": "3", "prescribedRepRange": "12–15" }
       ]
     }
   ]
