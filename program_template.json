@@ -1,0 +1,41 @@
+{
+  "description": "Hypertrophy PWA — program template. Copy this file, edit the days and exercises, then use Settings → Import program. Same shape as bundled_program.json (only \"days\" is required).",
+  "days": [
+    {
+      "dayKey": "Day A",
+      "dayTitle": "Day A — example (rename me)",
+      "lines": [
+        {
+          "category": "Main",
+          "exerciseName": "Squat or leg press",
+          "prescribedSets": "3",
+          "prescribedRepRange": "6–10"
+        },
+        {
+          "category": "Accessory",
+          "exerciseName": "Leg curl",
+          "prescribedSets": "3",
+          "prescribedRepRange": "10–15"
+        }
+      ]
+    },
+    {
+      "dayKey": "Day B",
+      "dayTitle": "Day B — example (rename me)",
+      "lines": [
+        {
+          "category": "Main",
+          "exerciseName": "Bench or push-up variant",
+          "prescribedSets": "3",
+          "prescribedRepRange": "8–12"
+        },
+        {
+          "category": "Main",
+          "exerciseName": "Row or pulldown",
+          "prescribedSets": "3",
+          "prescribedRepRange": "8–12"
+        }
+      ]
+    }
+  ]
+}

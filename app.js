@@ -194,6 +194,14 @@ function estimate1RM(weight, reps) {
   return w * (1 + rr / 30);
 }
 
+/** Inverse Epley (same model as estimate1RM): working weight for a target rep count. */
+function workingWeightFrom1RM(oneRmLb, reps) {
+  const om = Number(oneRmLb);
+  const r = clamp(Number(reps), 1, 12);
+  if (!om || om <= 0 || !r) return null;
+  return om / (1 + r / 30);
+}
+
 function exerciseHistoryPoints(state, exerciseName) {
   const out = [];
   const name = String(exerciseName || "");
@@ -285,6 +293,14 @@ function escapeHtml(t) {
 
 let state = loadState();
 let route = parseRoute();
+let ui = {
+  resetOpen: false,
+  importConfirmOpen: false,
+  importPayload: null,
+  calcOpen: false,
+  programConfirmOpen: false,
+  programImportData: null,
+};
 
 function parseRoute() {
   const h = (location.hash || "#train").slice(1);
@@ -298,7 +314,86 @@ function parseRoute() {
   }
   if (name === "session" && rest[0]) return { name: "session", sessionId: rest[0] };
   if (name === "history") return { name: "history" };
+  if (name === "settings") return { name: "settings" };
   return { name: "train" };
+}
+
+function normalizeProgramFile(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const days = raw.days ?? raw.program?.days;
+  if (!Array.isArray(days) || days.length === 0) return null;
+  const out = [];
+  for (const d of days) {
+    if (!d || typeof d !== "object") return null;
+    const dayKey = String(d.dayKey || "").trim();
+    if (!dayKey) return null;
+    const dayTitle = String(d.dayTitle != null ? d.dayTitle : dayKey);
+    const linesIn = Array.isArray(d.lines) ? d.lines : [];
+    const lines = linesIn
+      .map((l) => {
+        if (!l || typeof l !== "object") return null;
+        const exerciseName = String(l.exerciseName || "").trim();
+        if (!exerciseName) return null;
+        return {
+          category: String(l.category != null ? l.category : "Main"),
+          exerciseName,
+          prescribedSets: String(l.prescribedSets != null ? l.prescribedSets : "3"),
+          prescribedRepRange: String(l.prescribedRepRange != null ? l.prescribedRepRange : "8–12"),
+        };
+      })
+      .filter(Boolean);
+    if (!lines.length) return null;
+    out.push({ dayKey, dayTitle, lines });
+  }
+  return { days: out };
+}
+
+function normalizeImportedState(raw) {
+  let o = raw;
+  if (o && typeof o === "object" && o.data && typeof o.data === "object") o = o.data;
+  if (!o || typeof o !== "object") return null;
+  if (!Array.isArray(o.sessions)) return null;
+  const programDays = Array.isArray(o.programDays) ? o.programDays : [];
+  const sessions = o.sessions
+    .filter((s) => s && typeof s === "object")
+    .map((s) => ({
+      id: typeof s.id === "string" ? s.id : uid(),
+      startedAt: Number(s.startedAt) || Date.now(),
+      dayKey: String(s.dayKey ?? ""),
+      dayTitleSnapshot: String(s.dayTitleSnapshot ?? s.dayKey ?? ""),
+      completed: Boolean(s.completed),
+      finishedAt: s.finishedAt != null ? Number(s.finishedAt) : undefined,
+      sets: Array.isArray(s.sets)
+        ? s.sets
+            .filter((r) => r && typeof r === "object")
+            .map((r) => ({
+              id: typeof r.id === "string" ? r.id : uid(),
+              programLineId: String(r.programLineId ?? ""),
+              exerciseNameSnapshot: String(r.exerciseNameSnapshot ?? ""),
+              setIndex: Number(r.setIndex) || 1,
+              reps: Number(r.reps) || 0,
+              weightLb: Number(r.weightLb) || 0,
+            }))
+        : [],
+    }));
+  return { programDays, sessions };
+}
+
+function exportLiftingData() {
+  const payload = {
+    app: "hypertrophy-pwa",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    programDays: state.programDays,
+    sessions: state.sessions,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `hypertrophy-lifting-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function resetAllData() {
@@ -412,6 +507,9 @@ function render() {
   const trainTab = route.name === "train" || route.name === "day" || route.name === "exercise";
   const histTab = route.name === "history" || route.name === "session";
   const progTab = route.name === "progress" || route.name === "progress-ex";
+  const settingsTab = route.name === "settings";
+
+  if (route.name !== "progress") ui.calcOpen = false;
 
   if (route.name !== "day") stopWorkoutTimer();
 
@@ -618,7 +716,11 @@ function render() {
       `;
     }
   } else if (route.name === "progress") {
-    header = "<h1>Progress</h1>";
+    header = `
+      <div class="header-row">
+        <h1>Progress</h1>
+        <button type="button" class="btn btn-ghost calc-menu-btn" data-action="calc-menu" aria-haspopup="dialog">Calc</button>
+      </div>`;
     const names = allExerciseNames(state);
     if (!names.length) {
       main = `<div class="empty"><strong>No data yet</strong>Log sets to see progression charts.</div>`;
@@ -739,7 +841,102 @@ function render() {
           .join("")}
       `;
     }
+  } else if (route.name === "settings") {
+    header = "<h1>Settings</h1>";
+    main = `
+      <p class="muted" style="margin:0 0 16px">Export or import your program and logged workouts — the same data used for <strong style="color:var(--text)">Progress</strong> and <strong style="color:var(--text)">History</strong>.</p>
+      <div class="card stack">
+        <div>
+          <div class="section-title" style="margin-top:0">Program</div>
+          <p class="muted" style="margin:0 0 10px">Edit <code class="code-tag">program_template.json</code> (or start from the bundled program), then import. Workout history is kept; exercise line IDs are regenerated.</p>
+          <a class="btn btn-ghost stack" style="width:100%;text-align:center;margin-bottom:10px" href="./program_template.json" download="program_template.json">Download program template</a>
+          <input type="file" id="import-program-file" accept="application/json,.json" style="display:none" />
+          <button type="button" class="btn btn-primary" style="width:100%" data-action="import-program-pick">Import program</button>
+        </div>
+        <div>
+          <div class="section-title">Export</div>
+          <p class="muted" style="margin:0 0 10px">Save a JSON backup to your device or cloud.</p>
+          <button type="button" class="btn btn-primary" style="width:100%" data-action="export-data">Export lifting data</button>
+        </div>
+        <div>
+          <div class="section-title">Import</div>
+          <p class="muted" style="margin:0 0 10px">Choose a file from Export. This replaces data on this device.</p>
+          <input type="file" id="import-file" accept="application/json,.json" style="display:none" />
+          <button type="button" class="btn btn-ghost" style="width:100%" data-action="import-pick">Import lifting data</button>
+        </div>
+      </div>
+    `;
   }
+
+  const modal = ui.resetOpen
+    ? `
+      <div class="modal-backdrop" data-action="reset-close" role="presentation">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="Confirm reset">
+          <div class="section-title" style="margin:0 0 10px">Are you sure?</div>
+          <p class="muted" style="margin:0 0 14px">This clears your program + history on this device.</p>
+          <div class="toolbar" style="justify-content:flex-end;margin:0">
+            <button type="button" class="btn btn-ghost" data-action="reset-no">No</button>
+            <button type="button" class="btn btn-danger" data-action="reset-yes">Yes, reset</button>
+          </div>
+        </div>
+      </div>
+    `
+    : "";
+
+  const importModal =
+    ui.importConfirmOpen && ui.importPayload
+      ? `
+      <div class="modal-backdrop" data-action="import-close" role="presentation">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="Confirm import">
+          <div class="section-title" style="margin:0 0 10px">Replace all data?</div>
+          <p class="muted" style="margin:0 0 14px">Import will overwrite your program and workout history on this device. This cannot be undone.</p>
+          <div class="toolbar" style="justify-content:flex-end;margin:0">
+            <button type="button" class="btn btn-ghost" data-action="import-no">No</button>
+            <button type="button" class="btn btn-primary" data-action="import-yes">Yes, import</button>
+          </div>
+        </div>
+      </div>
+    `
+      : "";
+
+  const programModal =
+    ui.programConfirmOpen && ui.programImportData
+      ? `
+      <div class="modal-backdrop" data-action="program-close" role="presentation">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="Confirm program import">
+          <div class="section-title" style="margin:0 0 10px">Replace program?</div>
+          <p class="muted" style="margin:0 0 14px">Your workout history stays. Today’s in-progress workout may not match the new exercises until you finish or start fresh.</p>
+          <div class="toolbar" style="justify-content:flex-end;margin:0">
+            <button type="button" class="btn btn-ghost" data-action="program-no">No</button>
+            <button type="button" class="btn btn-primary" data-action="program-yes">Yes, import program</button>
+          </div>
+        </div>
+      </div>
+    `
+      : "";
+
+  const calcModal = ui.calcOpen
+    ? `
+      <div class="modal-backdrop" data-action="calc-close" role="presentation">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="Working weight from 1RM">
+          <div class="section-title" style="margin:0 0 10px">Working weight</div>
+          <p class="muted" style="margin:0 0 14px">Uses the same Epley-based model as your estimated 1RM. Reps are capped at 1–12 for the formula.</p>
+          <label class="muted" style="display:block;margin-bottom:6px;font-size:0.8rem">Estimated 1RM (lb)</label>
+          <input type="number" inputmode="decimal" id="calc-1rm" class="calc-input" placeholder="e.g. 225" min="0" step="0.5" />
+          <label class="muted" style="display:block;margin:12px 0 6px;font-size:0.8rem">Rep range</label>
+          <div class="form-row" style="margin-top:0">
+            <input type="number" inputmode="numeric" id="calc-rep-lo" class="calc-input" placeholder="Low" min="1" max="30" step="1" />
+            <input type="number" inputmode="numeric" id="calc-rep-hi" class="calc-input" placeholder="High" min="1" max="30" step="1" />
+          </div>
+          <button type="button" class="btn btn-primary stack" style="width:100%;margin-top:14px" data-action="calc-run">Calculate</button>
+          <div id="calc-out" class="calc-out muted" style="margin-top:14px"></div>
+          <div class="toolbar" style="justify-content:flex-end;margin:16px 0 0">
+            <button type="button" class="btn btn-ghost" data-action="calc-dismiss">Close</button>
+          </div>
+        </div>
+      </div>
+    `
+    : "";
 
   app.innerHTML = `
     <header class="top">${header}</header>
@@ -748,20 +945,146 @@ function render() {
       <a href="#train" class="${trainTab ? "active" : ""}"><span class="icon">◆</span>Train</a>
       <a href="#progress" class="${progTab ? "active" : ""}"><span class="icon">▦</span>Progress</a>
       <a href="#history" class="${histTab ? "active" : ""}"><span class="icon">⟲</span>History</a>
+      <a href="#settings" class="${settingsTab ? "active" : ""}"><span class="icon">⚙</span>Settings</a>
     </nav>
+    ${modal}
+    ${importModal}
+    ${programModal}
+    ${calcModal}
   `;
 
   wireHandlers();
 }
 
+function runRmCalc() {
+  const out = document.getElementById("calc-out");
+  if (!out) return;
+  const oneRm = parseFloat(document.getElementById("calc-1rm")?.value || "");
+  let lo = parseInt(document.getElementById("calc-rep-lo")?.value || "", 10);
+  let hi = parseInt(document.getElementById("calc-rep-hi")?.value || "", 10);
+  if (!oneRm || oneRm <= 0) {
+    out.innerHTML = "<strong style=\"color:var(--text)\">Enter a 1RM.</strong>";
+    return;
+  }
+  if (!lo || lo < 1) {
+    out.innerHTML = "<strong style=\"color:var(--text)\">Enter at least the low rep count.</strong>";
+    return;
+  }
+  if (!hi || hi < 1) hi = lo;
+  if (lo > hi) [lo, hi] = [hi, lo];
+  const wLo = workingWeightFrom1RM(oneRm, lo);
+  const wHi = workingWeightFrom1RM(oneRm, hi);
+  const mid = Math.round((lo + hi) / 2);
+  const wMid = workingWeightFrom1RM(oneRm, mid);
+  if (wLo == null || wHi == null) {
+    out.textContent = "Could not compute.";
+    return;
+  }
+  const fmt = (w) => `${formatWeight(w)} lb`;
+  if (lo === hi) {
+    out.innerHTML = `At <strong style="color:var(--text)">${lo}</strong> reps: <strong style="color:var(--text)">${fmt(
+      wLo
+    )}</strong>`;
+  } else {
+    out.innerHTML = `
+      <div style="line-height:1.5">
+        <div><strong style="color:var(--text)">${lo}</strong> reps → <strong style="color:var(--text)">${fmt(wLo)}</strong></div>
+        <div><strong style="color:var(--text)">${mid}</strong> reps → <strong style="color:var(--text)">${fmt(wMid)}</strong></div>
+        <div><strong style="color:var(--text)">${hi}</strong> reps → <strong style="color:var(--text)">${fmt(wHi)}</strong></div>
+      </div>`;
+  }
+}
+
 function wireHandlers() {
-  document.querySelector("[data-action='reset']")?.addEventListener("click", async () => {
-    const ok = confirm("Reset all data on this device? This clears your program + history.");
-    if (!ok) return;
+  document.querySelector("[data-action='calc-menu']")?.addEventListener("click", () => {
+    ui.calcOpen = true;
+    render();
+    requestAnimationFrame(() => document.getElementById("calc-1rm")?.focus());
+  });
+  document.querySelector("[data-action='calc-close']")?.addEventListener("click", (e) => {
+    if (e.target !== e.currentTarget) return;
+    ui.calcOpen = false;
+    render();
+  });
+  document.querySelector("[data-action='calc-dismiss']")?.addEventListener("click", () => {
+    ui.calcOpen = false;
+    render();
+  });
+  document.querySelector("[data-action='calc-run']")?.addEventListener("click", () => {
+    runRmCalc();
+  });
+
+  document.querySelector("[data-action='reset']")?.addEventListener("click", () => {
+    ui.resetOpen = true;
+    render();
+  });
+  document.querySelector("[data-action='reset-close']")?.addEventListener("click", (e) => {
+    // Only close when tapping outside the dialog.
+    if (e.target !== e.currentTarget) return;
+    ui.resetOpen = false;
+    render();
+  });
+  document.querySelector("[data-action='reset-no']")?.addEventListener("click", () => {
+    ui.resetOpen = false;
+    render();
+  });
+  document.querySelector("[data-action='reset-yes']")?.addEventListener("click", async () => {
+    ui.resetOpen = false;
+    render();
     await resetAllData();
     location.hash = "#train";
-    render();
     setTimeout(() => location.reload(), 50);
+  });
+
+  document.querySelector("[data-action='export-data']")?.addEventListener("click", () => {
+    exportLiftingData();
+  });
+  document.querySelector("[data-action='import-pick']")?.addEventListener("click", () => {
+    document.getElementById("import-file")?.click();
+  });
+  document.querySelector("[data-action='import-program-pick']")?.addEventListener("click", () => {
+    document.getElementById("import-program-file")?.click();
+  });
+
+  document.querySelector("[data-action='import-close']")?.addEventListener("click", (e) => {
+    if (e.target !== e.currentTarget) return;
+    ui.importConfirmOpen = false;
+    ui.importPayload = null;
+    render();
+  });
+  document.querySelector("[data-action='import-no']")?.addEventListener("click", () => {
+    ui.importConfirmOpen = false;
+    ui.importPayload = null;
+    render();
+  });
+  document.querySelector("[data-action='import-yes']")?.addEventListener("click", () => {
+    if (!ui.importPayload) return;
+    state = ui.importPayload;
+    saveState(state);
+    ui.importConfirmOpen = false;
+    ui.importPayload = null;
+    location.hash = "#progress";
+    render();
+  });
+
+  document.querySelector("[data-action='program-close']")?.addEventListener("click", (e) => {
+    if (e.target !== e.currentTarget) return;
+    ui.programConfirmOpen = false;
+    ui.programImportData = null;
+    render();
+  });
+  document.querySelector("[data-action='program-no']")?.addEventListener("click", () => {
+    ui.programConfirmOpen = false;
+    ui.programImportData = null;
+    render();
+  });
+  document.querySelector("[data-action='program-yes']")?.addEventListener("click", () => {
+    if (!ui.programImportData?.days?.length) return;
+    seedProgramFromJson(ui.programImportData, state);
+    ui.programConfirmOpen = false;
+    ui.programImportData = null;
+    location.hash = "#train";
+    render();
   });
 
   document.querySelector("[data-action='start']")?.addEventListener("click", () => {
@@ -832,6 +1155,59 @@ function wireHandlers() {
 
 function init() {
   window.addEventListener("hashchange", render);
+  if (!window.__hypertrophyImportListener) {
+    window.__hypertrophyImportListener = true;
+    document.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!t) return;
+      const f = t.files?.[0];
+      if (t.id === "import-file") {
+        t.value = "";
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result || ""));
+            const normalized = normalizeImportedState(parsed);
+            if (!normalized) {
+              alert("That file doesn’t look like a valid Hypertrophy export.");
+              return;
+            }
+            ui.importPayload = normalized;
+            ui.importConfirmOpen = true;
+            render();
+          } catch {
+            alert("Could not read that file as JSON.");
+          }
+        };
+        reader.readAsText(f);
+        return;
+      }
+      if (t.id === "import-program-file") {
+        t.value = "";
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result || ""));
+            const normalized = normalizeProgramFile(parsed);
+            if (!normalized) {
+              alert(
+                "That file isn’t a valid program. Use program_template.json: a \"days\" array with dayKey, dayTitle, and lines (exerciseName required per line)."
+              );
+              return;
+            }
+            ui.programImportData = normalized;
+            ui.programConfirmOpen = true;
+            render();
+          } catch {
+            alert("Could not read that file as JSON.");
+          }
+        };
+        reader.readAsText(f);
+      }
+    });
+  }
   render();
 
   loadBundledProgram().then((json) => {

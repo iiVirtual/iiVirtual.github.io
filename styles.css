@@ -19,11 +19,15 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+  height: 100%;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
   min-height: 100dvh;
+  height: 100%;
   font-family: var(--font);
   background:
     linear-gradient(rgba(12, 12, 14, 0.88), rgba(12, 12, 14, 0.94)),
@@ -31,9 +35,11 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  background-color: var(--bg);
   color: var(--text);
   line-height: 1.45;
   padding-bottom: calc(72px + var(--safe-b));
+  overscroll-behavior-y: none;
 }
 
 header.top {
@@ -51,6 +57,25 @@ header.top h1 {
   font-size: 1.25rem;
   font-weight: 650;
   letter-spacing: -0.02em;
+}
+
+header.top .header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+header.top .header-row h1 {
+  flex: 1;
+  min-width: 0;
+}
+
+header.top .calc-menu-btn {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 0.85rem;
 }
 
 main {
@@ -244,9 +269,9 @@ nav.tabs a {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 10px 8px;
-  font-size: 0.68rem;
+  gap: 2px;
+  padding: 8px 4px;
+  font-size: 0.62rem;
   font-weight: 600;
   color: var(--muted);
   text-decoration: none;
@@ -254,12 +279,53 @@ nav.tabs a {
 }
 
 nav.tabs a span.icon {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   line-height: 1;
 }
 
 nav.tabs a.active {
   color: var(--accent);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px 16px calc(18px + var(--safe-b));
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(14px);
+}
+
+.modal {
+  width: min(520px, 100%);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--surface2);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+}
+
+.modal .calc-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--surface2);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.modal .calc-input::placeholder {
+  color: #71717a;
+}
+
+.calc-out strong {
+  font-weight: 650;
 }
 
 .back-link {
@@ -280,6 +346,15 @@ nav.tabs a.active {
 .muted {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.code-tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8em;
+  color: var(--text);
+  background: var(--surface2);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
 }
 
 .kv {

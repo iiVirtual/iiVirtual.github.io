@@ -1,4 +1,4 @@
-const CACHE = "hypertrophy-v6";
+const CACHE = "hypertrophy-v7";
 const ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const ASSETS = [
   "./styles.css",
   "./manifest.json",
   "./bundled_program.json",
+  "./program_template.json",
   "./icons/icon.svg",
 ];
 
