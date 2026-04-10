@@ -235,6 +235,49 @@ function allExerciseNames(state) {
   return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
+function sessionIncludedForWeightMetrics(s) {
+  return s.completed || isToday(s.startedAt);
+}
+
+function exerciseLoggedWeights(state, exerciseName) {
+  const name = String(exerciseName || "");
+  const weights = [];
+  for (const s of state.sessions) {
+    if (!sessionIncludedForWeightMetrics(s)) continue;
+    for (const row of s.sets || []) {
+      if (row.exerciseNameSnapshot !== name) continue;
+      const w = Number(row.weightLb);
+      if (w > 0) weights.push(w);
+    }
+  }
+  return weights;
+}
+
+function avgWeightExercise(state, exerciseName) {
+  const w = exerciseLoggedWeights(state, exerciseName);
+  if (!w.length) return null;
+  return w.reduce((a, b) => a + b, 0) / w.length;
+}
+
+/** Most recent completed session that logged this exercise; mean weight of those sets. */
+function lastFinishedWorkoutWeightAvg(state, exerciseName) {
+  const name = String(exerciseName || "");
+  const sessions = [...state.sessions].filter((s) => s.completed).sort((a, b) => b.startedAt - a.startedAt);
+  for (const s of sessions) {
+    const rows = (s.sets || []).filter((r) => r.exerciseNameSnapshot === name && Number(r.weightLb) > 0);
+    if (!rows.length) continue;
+    const avg = rows.reduce((a, r) => a + r.weightLb, 0) / rows.length;
+    return { avg, startedAt: s.startedAt };
+  }
+  return null;
+}
+
+function formatAvgLb(x) {
+  if (x == null) return "—";
+  const n = Math.round(x * 10) / 10;
+  return `${Number.isInteger(n) ? n : n.toFixed(1)} lb`;
+}
+
 function trendPct(points) {
   if (!points || points.length < 2) return null;
   const a = points[Math.max(0, points.length - 4)]?.est1rm;
@@ -642,6 +685,8 @@ function render() {
       const points = exerciseHistoryPoints(state, line.exerciseName);
       const best1rm = points.length ? Math.max(...points.map((p) => p.est1rm)) : null;
       const t = trendPct(points);
+      const avgW = avgWeightExercise(state, line.exerciseName);
+      const lastW = lastFinishedWorkoutWeightAvg(state, line.exerciseName);
       const sugg = suggestProgression(line, points);
       const restLeft = restSecondsLeft();
       const rows = setsForLine(session, line.id)
@@ -677,6 +722,31 @@ function render() {
             <div style="text-align:right">
               <div class="k">Trend</div>
               <div class="v">${t == null ? "—" : `${t >= 0 ? "+" : ""}${t.toFixed(1)}%`}</div>
+            </div>
+          </div>
+          <div class="kv">
+            <div>
+              <div class="k">Avg weight</div>
+              <div class="v">${escapeHtml(formatAvgLb(avgW))}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="k">Last workout</div>
+              <div class="v">${
+                lastW
+                  ? `${escapeHtml(formatAvgLb(lastW.avg))}`
+                  : "—"
+              }</div>
+              ${
+                lastW
+                  ? `<div class="muted" style="font-size:0.72rem;margin-top:4px">${escapeHtml(
+                      new Date(lastW.startedAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    )}</div>`
+                  : ""
+              }
             </div>
           </div>
           ${points.length ? `<a class="btn btn-ghost" style="width:100%" href="#progress/${encodeURIComponent(
@@ -730,11 +800,27 @@ function render() {
           const pts = exerciseHistoryPoints(state, n);
           const last = pts[pts.length - 1]?.est1rm;
           const t = trendPct(pts);
+          const avgW = avgWeightExercise(state, n);
+          const lastW = lastFinishedWorkoutWeightAvg(state, n);
           return `
             <a class="card" href="#progress/${encodeURIComponent(n)}">
               <h2>${escapeHtml(n)}</h2>
               <p>${last ? `Est. 1RM ${Math.round(last)} lb` : "—"}${
                 t == null ? "" : ` · ${t >= 0 ? "+" : ""}${t.toFixed(1)}%`
+              }</p>
+              <p class="meta" style="margin-top:8px;line-height:1.45">Avg weight (logged sets): <strong style="color:var(--text)">${escapeHtml(
+                formatAvgLb(avgW)
+              )}</strong>${
+                lastW
+                  ? ` · Last workout: <strong style="color:var(--text)">${escapeHtml(
+                      formatAvgLb(lastW.avg)
+                    )}</strong> <span class="muted">(${escapeHtml(
+                      new Date(lastW.startedAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    )})</span>`
+                  : ""
               }</p>
             </a>
           `;
@@ -751,6 +837,8 @@ function render() {
     } else {
       const best = Math.max(...pts.map((p) => p.est1rm));
       const t = trendPct(pts);
+      const avgW = avgWeightExercise(state, name);
+      const lastW = lastFinishedWorkoutWeightAvg(state, name);
       main = `
         <a class="back-link" href="#progress">← Progress</a>
         <div class="section-title">${escapeHtml(name)}</div>
@@ -763,6 +851,27 @@ function render() {
             <div style="text-align:right">
               <div class="k">Trend</div>
               <div class="v">${t == null ? "—" : `${t >= 0 ? "+" : ""}${t.toFixed(1)}%`}</div>
+            </div>
+          </div>
+          <div class="kv">
+            <div>
+              <div class="k">Avg weight</div>
+              <div class="v">${escapeHtml(formatAvgLb(avgW))}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="k">Last workout</div>
+              <div class="v">${lastW ? escapeHtml(formatAvgLb(lastW.avg)) : "—"}</div>
+              ${
+                lastW
+                  ? `<div class="muted" style="font-size:0.72rem;margin-top:4px">${escapeHtml(
+                      new Date(lastW.startedAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })
+                    )}</div>`
+                  : ""
+              }
             </div>
           </div>
           ${svgLineChart(pts)}
