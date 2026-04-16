@@ -1,4 +1,4 @@
-const CACHE = "hypertrophy-v12";
+const CACHE = "hypertrophy-v13";
 const ASSETS = [
   "./",
   "./index.html",

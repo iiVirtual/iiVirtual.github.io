@@ -417,6 +417,15 @@ function parseRoute() {
   return { name: "train" };
 }
 
+function routeKey(r) {
+  if (!r || typeof r !== "object") return "";
+  if (r.name === "day") return `day:${r.dayKey}`;
+  if (r.name === "exercise") return `exercise:${r.dayKey}:${r.lineId}`;
+  if (r.name === "progress-ex") return `progress-ex:${r.exerciseName}`;
+  if (r.name === "session") return `session:${r.sessionId}`;
+  return r.name;
+}
+
 function normalizeProgramFile(raw) {
   if (!raw || typeof raw !== "object") return null;
   const days = raw.days ?? raw.program?.days;
@@ -622,7 +631,10 @@ function suggestProgression(line, points) {
 }
 
 function render() {
+  const prevRouteKey = routeKey(route);
   route = parseRoute();
+  const sameRoute = prevRouteKey === routeKey(route);
+  const scrollY = sameRoute ? window.scrollY : 0;
   const app = document.getElementById("app");
   const trainTab = route.name === "train" || route.name === "day" || route.name === "exercise";
   const histTab = route.name === "history" || route.name === "session";
@@ -1173,6 +1185,13 @@ function render() {
   `;
 
   wireHandlers();
+  if (sameRoute) {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  } else {
+    window.scrollTo(0, 0);
+  }
   if (ui.faceOpen) {
     requestAnimationFrame(() => initFaceTool());
   }
@@ -1535,6 +1554,7 @@ function wireHandlers() {
 }
 
 function init() {
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
   window.addEventListener("hashchange", render);
   if (!window.__hypertrophyImportListener) {
     window.__hypertrophyImportListener = true;
