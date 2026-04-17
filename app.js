@@ -386,6 +386,11 @@ function escapeHtml(t) {
   return d.innerHTML;
 }
 
+/** Bottom nav: matching 22×22 stroke icons (currentColor, 2px round caps) */
+function tabIcon(paths) {
+  return `<span class="tab-ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg></span>`;
+}
+
 let state = loadState();
 let route = parseRoute();
 let ui = {
@@ -853,7 +858,7 @@ function render() {
         <div class="card">${rows || `<p class="muted" style="margin:8px 0">No sets yet.</p>`}</div>
         <div class="form-row">
           <input type="number" inputmode="numeric" id="inp-reps" placeholder="Reps" min="1" step="1" />
-          <input type="number" inputmode="decimal" id="inp-weight" placeholder="Weight (lb)" min="0" step="0.5" />
+          <input type="number" inputmode="decimal" id="inp-weight" placeholder="Weight (lb)" min="0" step="0.5" title="Enter 0 for bodyweight" />
         </div>
         <div class="toolbar" style="justify-content:space-between;margin-top:12px">
           <button type="button" class="btn btn-primary" style="flex:1" data-action="add-set">Add set</button>
@@ -1172,10 +1177,18 @@ function render() {
     <header class="top">${header}</header>
     <main>${main}</main>
     <nav class="tabs">
-      <a href="#train" class="${trainTab ? "active" : ""}"><span class="icon">◆</span>Train</a>
-      <a href="#progress" class="${progTab ? "active" : ""}"><span class="icon">▦</span>Progress</a>
-      <a href="#history" class="${histTab ? "active" : ""}"><span class="icon">⟲</span>History</a>
-      <a href="#settings" class="${settingsTab ? "active" : ""}"><span class="icon">⚙</span>Settings</a>
+      <a href="#train" class="${trainTab ? "active" : ""}">${tabIcon(
+    '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'
+  )}<span class="tab-label">Train</span></a>
+      <a href="#progress" class="${progTab ? "active" : ""}">${tabIcon(
+    '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'
+  )}<span class="tab-label">Progress</span></a>
+      <a href="#history" class="${histTab ? "active" : ""}">${tabIcon(
+    '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
+  )}<span class="tab-label">History</span></a>
+      <a href="#settings" class="${settingsTab ? "active" : ""}">${tabIcon(
+    '<line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/>'
+  )}<span class="tab-label">Settings</span></a>
     </nav>
     ${modal}
     ${importModal}
@@ -1514,7 +1527,8 @@ function wireHandlers() {
     if (!line || !session || !repsEl || !wEl) return;
     const reps = parseInt(repsEl.value, 10);
     const weightLb = parseFloat(wEl.value);
-    if (!reps || reps < 1 || !weightLb || weightLb <= 0) return;
+    if (!reps || reps < 1) return;
+    if (!Number.isFinite(weightLb) || weightLb < 0) return;
     addSet(state, session.id, line, reps, weightLb);
     repsEl.value = "";
     wEl.value = "";

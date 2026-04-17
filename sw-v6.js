@@ -1,4 +1,4 @@
-const CACHE = "hypertrophy-v13";
+const CACHE = "hypertrophy-v16";
 const ASSETS = [
   "./",
   "./index.html",
@@ -8,6 +8,9 @@ const ASSETS = [
   "./bundled_program.json",
   "./program_template.json",
   "./icons/icon.svg",
+  "./icons/apple-touch-icon.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
 ];
 
 self.addEventListener("install", (e) => {
