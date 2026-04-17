@@ -386,10 +386,37 @@ function escapeHtml(t) {
   return d.innerHTML;
 }
 
-/** Bottom nav: matching 22×22 stroke icons (currentColor, 2px round caps) */
-function tabIcon(paths) {
-  return `<span class="tab-ico" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg></span>`;
+/**
+ * Bottom nav: one visual system — 24×24 viewBox, stroke-only, round caps.
+ * (Stroke width applied via CSS so iOS Safari renders all tabs uniformly.)
+ */
+function tabIcon(children) {
+  return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-stroke">${children}</g></svg></span>`;
 }
+
+/** Shared geometry: same margins, stroke caps; dumbbell · bars · clock · sliders */
+const TAB_ICON_TRAIN = `
+  <circle cx="7" cy="12" r="3.5"/>
+  <circle cx="17" cy="12" r="3.5"/>
+  <line x1="10.5" y1="12" x2="13.5" y2="12"/>
+`;
+const TAB_ICON_PROGRESS = `
+  <line x1="6" y1="19" x2="6" y2="10"/>
+  <line x1="12" y1="19" x2="12" y2="5"/>
+  <line x1="18" y1="19" x2="18" y2="13"/>
+`;
+const TAB_ICON_HISTORY = `
+  <circle cx="12" cy="12" r="9"/>
+  <polyline points="12 7 12 12 16 14"/>
+`;
+const TAB_ICON_SETTINGS = `
+  <line x1="4" y1="6" x2="20" y2="6"/>
+  <line x1="14" y1="4" x2="14" y2="8"/>
+  <line x1="4" y1="12" x2="20" y2="12"/>
+  <line x1="8" y1="10" x2="8" y2="14"/>
+  <line x1="4" y1="18" x2="20" y2="18"/>
+  <line x1="17" y1="16" x2="17" y2="20"/>
+`;
 
 let state = loadState();
 let route = parseRoute();
@@ -1177,18 +1204,10 @@ function render() {
     <header class="top">${header}</header>
     <main>${main}</main>
     <nav class="tabs">
-      <a href="#train" class="${trainTab ? "active" : ""}">${tabIcon(
-    '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'
-  )}<span class="tab-label">Train</span></a>
-      <a href="#progress" class="${progTab ? "active" : ""}">${tabIcon(
-    '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'
-  )}<span class="tab-label">Progress</span></a>
-      <a href="#history" class="${histTab ? "active" : ""}">${tabIcon(
-    '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
-  )}<span class="tab-label">History</span></a>
-      <a href="#settings" class="${settingsTab ? "active" : ""}">${tabIcon(
-    '<line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/>'
-  )}<span class="tab-label">Settings</span></a>
+      <a href="#train" class="${trainTab ? "active" : ""}">${tabIcon(TAB_ICON_TRAIN)}<span class="tab-label">Train</span></a>
+      <a href="#progress" class="${progTab ? "active" : ""}">${tabIcon(TAB_ICON_PROGRESS)}<span class="tab-label">Progress</span></a>
+      <a href="#history" class="${histTab ? "active" : ""}">${tabIcon(TAB_ICON_HISTORY)}<span class="tab-label">History</span></a>
+      <a href="#settings" class="${settingsTab ? "active" : ""}">${tabIcon(TAB_ICON_SETTINGS)}<span class="tab-label">Settings</span></a>
     </nav>
     ${modal}
     ${importModal}

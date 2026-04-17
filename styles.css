@@ -442,16 +442,30 @@ nav.tabs a .tab-ico {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  opacity: 0.92;
+  opacity: 0.95;
 }
 
-nav.tabs a .tab-ico svg {
+nav.tabs a .tab-ico svg.tab-svg {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  overflow: visible;
+  color: inherit;
+  /* Crisp strokes on iOS / WebKit tab bar */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* One stroke style for every tab icon (matches across Train / Progress / History / Settings) */
+nav.tabs a .tab-svg .tab-svg-stroke :is(circle, line, polyline) {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 nav.tabs a .tab-label {
