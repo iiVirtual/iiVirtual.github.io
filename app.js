@@ -387,35 +387,38 @@ function escapeHtml(t) {
 }
 
 /**
- * Bottom nav: one visual system — 24×24 viewBox, stroke-only, round caps.
- * (Stroke width applied via CSS so iOS Safari renders all tabs uniformly.)
+ * Bottom nav: Lucide icons (ISC) — one family, 24×24, 2px strokes.
+ * https://lucide.dev — renders consistently on iOS Safari when styled via CSS.
  */
 function tabIcon(children) {
-  return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-stroke">${children}</g></svg></span>`;
+  return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-inner">${children}</g></svg></span>`;
 }
 
-/** Shared geometry: same margins, stroke caps; dumbbell · bars · clock · sliders */
+/* activity — single stroke, reads clearly at tab-bar size (Lucide) */
 const TAB_ICON_TRAIN = `
-  <circle cx="7" cy="12" r="3.5"/>
-  <circle cx="17" cy="12" r="3.5"/>
-  <line x1="10.5" y1="12" x2="13.5" y2="12"/>
+  <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
 `;
 const TAB_ICON_PROGRESS = `
-  <line x1="6" y1="19" x2="6" y2="10"/>
-  <line x1="12" y1="19" x2="12" y2="5"/>
-  <line x1="18" y1="19" x2="18" y2="13"/>
+  <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+  <path d="M18 17V9" />
+  <path d="M13 17V5" />
+  <path d="M8 17v-3" />
 `;
 const TAB_ICON_HISTORY = `
-  <circle cx="12" cy="12" r="9"/>
-  <polyline points="12 7 12 12 16 14"/>
+  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+  <path d="M3 3v5h5" />
+  <path d="M12 7v5l4 2" />
 `;
 const TAB_ICON_SETTINGS = `
-  <line x1="4" y1="6" x2="20" y2="6"/>
-  <line x1="14" y1="4" x2="14" y2="8"/>
-  <line x1="4" y1="12" x2="20" y2="12"/>
-  <line x1="8" y1="10" x2="8" y2="14"/>
-  <line x1="4" y1="18" x2="20" y2="18"/>
-  <line x1="17" y1="16" x2="17" y2="20"/>
+  <line x1="21" x2="14" y1="4" y2="4" />
+  <line x1="10" x2="3" y1="4" y2="4" />
+  <line x1="21" x2="12" y1="12" y2="12" />
+  <line x1="8" x2="3" y1="12" y2="12" />
+  <line x1="21" x2="16" y1="20" y2="20" />
+  <line x1="12" x2="3" y1="20" y2="20" />
+  <line x1="14" x2="14" y1="2" y2="6" />
+  <line x1="8" x2="8" y1="10" y2="14" />
+  <line x1="16" x2="16" y1="18" y2="22" />
 `;
 
 let state = loadState();
