@@ -391,7 +391,7 @@ function escapeHtml(t) {
  * https://lucide.dev — renders consistently on iOS Safari when styled via CSS.
  */
 function tabIcon(children) {
-  return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-inner">${children}</g></svg></span>`;
+  return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-inner">${children}</g></svg></span>`;
 }
 
 /* activity — single stroke, reads clearly at tab-bar size (Lucide) */
