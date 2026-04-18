@@ -387,8 +387,8 @@ function escapeHtml(t) {
 }
 
 /**
- * Bottom nav: Lucide icons (ISC) — one family, 24×24, 2px strokes.
- * https://lucide.dev — renders consistently on iOS Safari when styled via CSS.
+ * Bottom nav: Lucide icons (ISC) — one family, 2px strokes. SVG size must match styles.css --tab-icon-size.
+ * https://lucide.dev
  */
 function tabIcon(children) {
   return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-inner">${children}</g></svg></span>`;

@@ -47,11 +47,18 @@
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.45);
   --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
   --content-max: 34rem;
-  /* iOS standalone PWA can report an inflated bottom inset; ~34px is typical home-indicator height */
+  /* iOS standalone PWA can report an inflated bottom inset */
   --safe-b: min(34px, max(0px, env(safe-area-inset-bottom, 0px)));
   --safe-t: env(safe-area-inset-top, 0);
-  /* Nav chrome (4 + 40 + 4) + clamped inset — must match nav.tabs outer height */
-  --tab-bar-clear: calc(48px + var(--safe-b));
+
+  /* Bottom tab bar: height ≈ icon + small cushion (labels + padding), then home-indicator inset */
+  --tab-icon-size: 24px;
+  --tab-bar-pad-y: 6px;
+  /* One row: icon + gap + label — slightly taller than --tab-icon-size alone */
+  --tab-bar-row-h: calc(var(--tab-icon-size) + 12px);
+  /* Strip above/below the row + row (matches nav.tabs outer box before safe-area padding) */
+  --tab-bar-chrome-h: calc(var(--tab-bar-pad-y) + var(--tab-bar-row-h) + var(--tab-bar-pad-y));
+  --tab-bar-clear: calc(var(--tab-bar-chrome-h) + var(--safe-b));
 }
 
 html {
@@ -421,7 +428,9 @@ nav.tabs {
   display: flex;
   gap: 2px;
   align-items: stretch;
-  padding: 4px 8px calc(4px + var(--safe-b));
+  box-sizing: border-box;
+  min-height: calc(var(--tab-bar-chrome-h) + var(--safe-b));
+  padding: var(--tab-bar-pad-y) 8px calc(var(--tab-bar-pad-y) + var(--safe-b));
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(20px) saturate(1.15);
   -webkit-backdrop-filter: blur(20px) saturate(1.15);
@@ -439,8 +448,8 @@ nav.tabs a {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  min-height: 40px;
-  padding: 2px 4px;
+  min-height: var(--tab-bar-row-h);
+  padding: 0 4px;
   color: var(--muted);
   text-decoration: none;
   border-radius: var(--radius-sm);
@@ -454,16 +463,16 @@ nav.tabs a .tab-ico {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--tab-icon-size);
+  height: var(--tab-icon-size);
   flex-shrink: 0;
   opacity: 0.96;
 }
 
 nav.tabs a .tab-ico svg.tab-svg {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: var(--tab-icon-size);
+  height: var(--tab-icon-size);
   overflow: visible;
   color: inherit;
   shape-rendering: geometricPrecision;
