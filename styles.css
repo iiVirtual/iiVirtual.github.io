@@ -47,27 +47,10 @@
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.45);
   --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
   --content-max: 34rem;
-  /* Overwritten at runtime by index.html probe (fixes iOS PWA wrong inset until first scroll) */
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0);
-  /* Fixed bottom tab bar + home indicator — matches nav.tabs total height */
-  --tab-bar-clear: calc(56px + var(--safe-b));
-}
-
-/* Hidden probe: WebKit resolves env(safe-area-inset-bottom) here; JS copies to --safe-b for stable chrome */
-.safe-area-probe {
-  position: fixed;
-  left: -9999px;
-  bottom: 0;
-  width: 1px;
-  height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  pointer-events: none;
-  visibility: hidden;
-  padding-bottom: constant(safe-area-inset-bottom);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Fixed bottom tab bar + home indicator — use env() here (don’t mirror via JS; iOS can lock wrong px) */
+  --tab-bar-clear: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
 html {
@@ -436,7 +419,9 @@ nav.tabs {
   z-index: 20;
   display: flex;
   gap: 2px;
-  padding: 5px 8px calc(6px + var(--safe-b));
+  /* constant() + env() — older iOS; avoid JS override that pinned an oversized inset */
+  padding: 5px 8px calc(6px + constant(safe-area-inset-bottom));
+  padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: blur(20px) saturate(1.15);
   -webkit-backdrop-filter: blur(20px) saturate(1.15);
