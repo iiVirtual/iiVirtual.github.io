@@ -20,7 +20,39 @@
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" sizes="180x180" />
   </head>
   <body>
+    <div id="safe-area-probe" class="safe-area-probe" aria-hidden="true"></div>
     <div id="app"></div>
+    <script>
+      (function () {
+        function syncSafeArea() {
+          var p = document.getElementById("safe-area-probe");
+          if (!p) return;
+          var pb = getComputedStyle(p).paddingBottom;
+          if (pb) document.documentElement.style.setProperty("--safe-b", pb);
+        }
+        function nudgeLayout() {
+          var y = window.scrollY || 0;
+          window.scrollTo(0, y + 0.001);
+          requestAnimationFrame(function () {
+            window.scrollTo(0, y);
+            syncSafeArea();
+          });
+        }
+        syncSafeArea();
+        requestAnimationFrame(syncSafeArea);
+        requestAnimationFrame(function () {
+          requestAnimationFrame(syncSafeArea);
+        });
+        if (document.readyState === "complete") nudgeLayout();
+        else window.addEventListener("load", nudgeLayout, { once: true });
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", syncSafeArea, { passive: true });
+        }
+        window.addEventListener("orientationchange", function () {
+          requestAnimationFrame(syncSafeArea);
+        });
+      })();
+    </script>
     <script src="./app.js" defer></script>
   </body>
 </html>
