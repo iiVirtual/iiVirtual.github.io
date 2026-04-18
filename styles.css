@@ -58,13 +58,17 @@ html {
   background: var(--bg);
   height: 100%;
   height: -webkit-fill-available;
+  /* Reduce root rubber-band; fixed chrome won’t fight elastic scroll on launch */
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
+  /* Use stable small viewport — 100dvh changes as iOS UI settles and makes fixed tab bar “bounce” */
   min-height: 100%;
   min-height: -webkit-fill-available;
-  min-height: 100dvh;
+  min-height: 100vh;
+  min-height: 100svh;
   font-family: var(--font);
   font-size: 1rem;
   line-height: var(--leading);
@@ -82,12 +86,14 @@ body {
   background-color: var(--bg);
   background-attachment: scroll;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
 }
 
 #app {
   min-height: 100%;
   min-height: -webkit-fill-available;
-  min-height: 100dvh;
+  min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -149,6 +155,7 @@ main {
   padding: 18px 18px calc(20px + var(--tab-bar-clear));
   max-width: var(--content-max);
   margin: 0 auto;
+  overscroll-behavior-y: contain;
 }
 
 /* ——— Buttons ——— */
@@ -418,6 +425,9 @@ nav.tabs {
   -webkit-backdrop-filter: blur(20px) saturate(1.15);
   border-top: 1px solid var(--border);
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+  /* Own compositor layer — avoids jank when viewport height / safe-area settle on launch */
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
 }
 
 nav.tabs a {
