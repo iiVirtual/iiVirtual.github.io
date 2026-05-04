@@ -51,14 +51,15 @@
   --safe-b: min(34px, max(0px, env(safe-area-inset-bottom, 0px)));
   --safe-t: env(safe-area-inset-top, 0);
 
-  /* Bottom tab bar: height ≈ icon + small cushion (labels + padding), then home-indicator inset */
-  --tab-icon-size: 24px;
-  --tab-bar-pad-y: 6px;
-  /* One row: icon + gap + label — slightly taller than --tab-icon-size alone */
-  --tab-bar-row-h: calc(var(--tab-icon-size) + 12px);
-  /* Strip above/below the row + row (matches nav.tabs outer box before safe-area padding) */
-  --tab-bar-chrome-h: calc(var(--tab-bar-pad-y) + var(--tab-bar-row-h) + var(--tab-bar-pad-y));
-  --tab-bar-clear: calc(var(--tab-bar-chrome-h) + var(--safe-b));
+  /* Bottom dock — fixed chrome height + safe area (scroll clearance for main) */
+  --dock-icon: 22px;
+  --dock-pad-y: 10px;
+  --dock-gap: 3px;
+  /* One label line (~0.5625rem uppercase) — px avoids :root em ambiguity */
+  --dock-label-h: 11px;
+  --dock-inner-h: calc(var(--dock-icon) + var(--dock-gap) + var(--dock-label-h));
+  --dock-chrome-h: calc(var(--dock-pad-y) + var(--dock-inner-h) + var(--dock-pad-y));
+  --bottom-clear: calc(var(--dock-chrome-h) + var(--safe-b));
 }
 
 html {
@@ -160,7 +161,7 @@ main {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  padding: 18px 18px calc(12px + var(--tab-bar-clear));
+  padding: 18px 18px calc(12px + var(--bottom-clear));
   max-width: var(--content-max);
   margin: 0 auto;
   overscroll-behavior-y: contain;
@@ -418,93 +419,89 @@ a.card:active {
   letter-spacing: var(--tracking-tight);
 }
 
-/* ——— Bottom nav ——— */
-nav.tabs {
+/* ——— Bottom dock (rebuilt: solid bar, no blur — fewer iOS PWA glitches) ——— */
+.bottom-dock {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 20;
-  display: flex;
-  gap: 2px;
-  align-items: stretch;
   box-sizing: border-box;
-  min-height: calc(var(--tab-bar-chrome-h) + var(--safe-b));
-  padding: var(--tab-bar-pad-y) 8px calc(var(--tab-bar-pad-y) + var(--safe-b));
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(20px) saturate(1.15);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
-  /* Own compositor layer — avoids jank when viewport height / safe-area settle on launch */
-  transform: translate3d(0, 0, 0);
-  -webkit-transform: translate3d(0, 0, 0);
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 6px;
+  padding: var(--dock-pad-y) 12px calc(var(--dock-pad-y) + var(--safe-b));
+  min-height: calc(var(--dock-chrome-h) + var(--safe-b));
+  background: var(--surface);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
 }
 
-nav.tabs a {
+.bottom-dock__link {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  min-height: var(--tab-bar-row-h);
-  padding: 0 4px;
+  gap: var(--dock-gap);
+  padding: 6px 2px;
+  margin: 0;
   color: var(--muted);
   text-decoration: none;
-  border-radius: var(--radius-sm);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  border-radius: 14px;
   transition:
-    color 0.15s ease,
-    background 0.15s ease;
+    color 0.16s ease,
+    background 0.16s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-nav.tabs a .tab-ico {
+.bottom-dock__text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bottom-dock__glyph {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--tab-icon-size);
-  height: var(--tab-icon-size);
+  width: var(--dock-icon);
+  height: var(--dock-icon);
   flex-shrink: 0;
-  opacity: 0.96;
 }
 
-nav.tabs a .tab-ico svg.tab-svg {
+.bottom-dock__svg {
   display: block;
-  width: var(--tab-icon-size);
-  height: var(--tab-icon-size);
-  overflow: visible;
+  width: var(--dock-icon);
+  height: var(--dock-icon);
   color: inherit;
-  shape-rendering: geometricPrecision;
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
 }
 
-/* Lucide tab icons: identical stroke treatment for path + line (iPhone / WebKit) */
-nav.tabs a .tab-svg .tab-svg-inner :where(path, line, circle, polyline) {
+.bottom-dock__svg .bottom-dock__svg-inner :where(path, line, circle, polyline) {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 1.85;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-nav.tabs a .tab-label {
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1.05;
-}
-
-nav.tabs a.active {
+.bottom-dock__link.is-active {
   color: var(--accent-bright);
   background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
-nav.tabs a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.bottom-dock__link:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
 }
 
 /* ——— Modals ——— */

@@ -10,10 +10,6 @@ function todayStart(d) {
   return x.getTime();
 }
 
-function isToday(ts) {
-  return todayStart(ts) === todayStart(Date.now());
-}
-
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -84,28 +80,18 @@ function activeSessionAny(state) {
   return [...state.sessions].reverse().find((s) => !s.completed) || null;
 }
 
-function activeSessionToday(state, dayKey) {
-  return openSessionsForDay(state, dayKey).find((s) => isToday(s.startedAt));
-}
-
-function closeStaleSessions(state, dayKey) {
-  for (const s of [...state.sessions]) {
-    if (!s.completed && s.dayKey === dayKey && !isToday(s.startedAt)) {
-      // If nothing was logged, discard instead of saving empty history.
-      if (!s.sets?.length) {
-        state.sessions = state.sessions.filter((x) => x.id !== s.id);
-      } else {
-        s.completed = true;
-        s.finishedAt = Date.now();
-      }
-    }
-  }
+/** Open workout for this program day — not tied to calendar midnight (sessions can span past 12:00). */
+function activeSessionForDay(state, dayKey) {
+  const open = openSessionsForDay(state, dayKey);
+  if (!open.length) return null;
+  return open.sort((a, b) => b.startedAt - a.startedAt)[0];
 }
 
 function startWorkout(state, day, startedAt) {
   const other = activeSessionAny(state);
   if (other && other.dayKey !== day.dayKey) return null;
-  closeStaleSessions(state, day.dayKey);
+  const existing = activeSessionForDay(state, day.dayKey);
+  if (existing) return existing;
   const session = {
     id: uid(),
     startedAt: startedAt ?? Date.now(),
@@ -249,8 +235,12 @@ function allExerciseNames(state) {
   return [...set].filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
+/** Completed sessions always; in-progress included until finished (even after midnight), with a cap on stale abandon. */
+const INCOMPLETE_METRICS_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 function sessionIncludedForWeightMetrics(s) {
-  return s.completed || isToday(s.startedAt);
+  if (s.completed) return true;
+  return Date.now() - s.startedAt < INCOMPLETE_METRICS_MAX_AGE_MS;
 }
 
 function exerciseLoggedWeights(state, exerciseName) {
@@ -387,14 +377,14 @@ function escapeHtml(t) {
 }
 
 /**
- * Bottom nav: Lucide icons (ISC) — one family, 2px strokes. SVG size must match styles.css --tab-icon-size.
+ * Bottom dock nav: Lucide paths (ISC). Icon pixel size must match styles.css --dock-icon.
  * https://lucide.dev
  */
-function tabIcon(children) {
-  return `<span class="tab-ico" aria-hidden="true"><svg class="tab-svg" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="tab-svg-inner">${children}</g></svg></span>`;
+function dockNavGlyph(children) {
+  return `<span class="bottom-dock__glyph" aria-hidden="true"><svg class="bottom-dock__svg" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><g class="bottom-dock__svg-inner">${children}</g></svg></span>`;
 }
 
-/* activity — single stroke, reads clearly at tab-bar size (Lucide) */
+/* Lucide paths (24×24 viewBox) */
 const TAB_ICON_TRAIN = `
   <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
 `;
@@ -641,18 +631,16 @@ function suggestProgression(line, points) {
   const atOrAboveLo = rows.filter((r) => r.reps >= rr.lo);
   const basePool = atOrAboveLo.length ? atOrAboveLo : rows;
   const baseMax = Math.max(...basePool.map((r) => r.weightLb));
-  const baseAvg = basePool.reduce((a, r) => a + r.weightLb, 0) / basePool.length;
 
-  const hitTop = rows.some((r) => r.reps >= rr.hi);
-  const topTier = rows.filter((r) => r.reps >= rr.hi && r.weightLb > 0);
-  const weightAtTop = topTier.length ? Math.max(...topTier.map((r) => r.weightLb)) : null;
+  const allSetsAtOrAboveHi = rows.every((r) => r.reps >= rr.hi);
+  const weightForBump = allSetsAtOrAboveHi ? Math.max(...rows.map((r) => r.weightLb)) : null;
 
   const roundSuggest = (lb) => Math.round(lb * 2) / 2;
 
-  if (hitTop && weightAtTop != null) {
-    const suggested = roundSuggest(weightAtTop + step);
-    return `Suggested working weight: ${formatWeight(suggested)} lb (last session you hit ${rr.hi}+ reps at ${formatWeight(
-      weightAtTop
+  if (allSetsAtOrAboveHi && weightForBump != null) {
+    const suggested = roundSuggest(weightForBump + step);
+    return `Suggested working weight: ${formatWeight(suggested)} lb (last session every set was ${rr.hi}+ reps; heaviest set ${formatWeight(
+      weightForBump
     )} lb).`;
   }
 
@@ -662,7 +650,7 @@ function suggestProgression(line, points) {
     return `Suggested working weight: ${formatWeight(suggestedHold)} lb — reps were under ${rr.lo}; same load and push for ${rr.lo}–${rr.hi}, or reduce slightly if form breaks down.`;
   }
 
-  return `Suggested working weight: ${formatWeight(suggestedHold)} lb — hold here until you reach ${rr.hi}+ reps on at least one set, then the target will move up.`;
+  return `Suggested working weight: ${formatWeight(suggestedHold)} lb — hold here until every set reaches ${rr.hi}+ reps, then the target will move up.`;
 }
 
 function render() {
@@ -736,7 +724,7 @@ function render() {
       main = `<div class="empty">Day not found.</div><a class="back-link" href="#train">← Back</a>`;
     } else {
       header = `<h1>${escapeHtml(day.dayKey)}</h1>`;
-      const active = activeSessionToday(state, day.dayKey);
+      const active = activeSessionForDay(state, day.dayKey);
       const activeAny = activeSessionAny(state);
       const locked = activeAny && activeAny.dayKey !== day.dayKey;
       if (active?.startedAt) ensureWorkoutTimer(active.startedAt);
@@ -757,12 +745,12 @@ function render() {
             </div>
             <p class="muted" style="margin:0">Finish the active workout before starting another day.</p>
           </div>
-          <p class="muted">Begins today’s session for this day. Older unfinished sessions are closed automatically.</p>`
+          <p class="muted">Starts a session for this program day. It stays active until you finish (even past midnight); history uses the day you started.</p>`
           : `
           <div class="toolbar" style="justify-content:flex-start">
             <button type="button" class="btn btn-primary" data-action="start">Start workout</button>
           </div>
-          <p class="muted">Begins today’s session for this day. Older unfinished sessions are closed automatically.</p>`;
+          <p class="muted">Starts a session for this program day. It stays active until you finish (even past midnight); history uses the day you started.</p>`;
       } else {
         body = `
           <div class="toolbar">
@@ -802,7 +790,7 @@ function render() {
   } else if (route.name === "exercise") {
     const day = getDay(state, route.dayKey);
     const line = day?.lines.find((l) => l.id === route.lineId);
-    const session = day ? activeSessionToday(state, day.dayKey) : null;
+    const session = day ? activeSessionForDay(state, day.dayKey) : null;
     if (!day || !line || !session) {
       header = "<h1>Log</h1>";
       main = `<div class="empty">Start a workout from the day screen first.</div><a class="back-link" href="#day/${encodeURIComponent(
@@ -1206,11 +1194,11 @@ function render() {
   app.innerHTML = `
     <header class="top">${header}</header>
     <main>${main}</main>
-    <nav class="tabs">
-      <a href="#train" class="${trainTab ? "active" : ""}">${tabIcon(TAB_ICON_TRAIN)}<span class="tab-label">Train</span></a>
-      <a href="#progress" class="${progTab ? "active" : ""}">${tabIcon(TAB_ICON_PROGRESS)}<span class="tab-label">Progress</span></a>
-      <a href="#history" class="${histTab ? "active" : ""}">${tabIcon(TAB_ICON_HISTORY)}<span class="tab-label">History</span></a>
-      <a href="#settings" class="${settingsTab ? "active" : ""}">${tabIcon(TAB_ICON_SETTINGS)}<span class="tab-label">Settings</span></a>
+    <nav class="bottom-dock" role="navigation" aria-label="Sections">
+      <a href="#train" class="bottom-dock__link${trainTab ? " is-active" : ""}">${dockNavGlyph(TAB_ICON_TRAIN)}<span class="bottom-dock__text">Train</span></a>
+      <a href="#progress" class="bottom-dock__link${progTab ? " is-active" : ""}">${dockNavGlyph(TAB_ICON_PROGRESS)}<span class="bottom-dock__text">Progress</span></a>
+      <a href="#history" class="bottom-dock__link${histTab ? " is-active" : ""}">${dockNavGlyph(TAB_ICON_HISTORY)}<span class="bottom-dock__text">History</span></a>
+      <a href="#settings" class="bottom-dock__link${settingsTab ? " is-active" : ""}">${dockNavGlyph(TAB_ICON_SETTINGS)}<span class="bottom-dock__text">Settings</span></a>
     </nav>
     ${modal}
     ${importModal}
@@ -1536,14 +1524,14 @@ function wireHandlers() {
     render();
   });
   document.querySelector("[data-action='finish']")?.addEventListener("click", () => {
-    const active = activeSessionToday(state, route.dayKey);
+    const active = activeSessionForDay(state, route.dayKey);
     if (active) finishWorkout(state, active.id);
     location.hash = "#train";
   });
   document.querySelector("[data-action='add-set']")?.addEventListener("click", () => {
     const day = getDay(state, route.dayKey);
     const line = day?.lines.find((l) => l.id === route.lineId);
-    const session = day ? activeSessionToday(state, day.dayKey) : null;
+    const session = day ? activeSessionForDay(state, day.dayKey) : null;
     const repsEl = document.getElementById("inp-reps");
     const wEl = document.getElementById("inp-weight");
     if (!line || !session || !repsEl || !wEl) return;
@@ -1560,7 +1548,7 @@ function wireHandlers() {
   document.querySelector("[data-action='repeat-set']")?.addEventListener("click", () => {
     const day = getDay(state, route.dayKey);
     const line = day?.lines.find((l) => l.id === route.lineId);
-    const session = day ? activeSessionToday(state, day.dayKey) : null;
+    const session = day ? activeSessionForDay(state, day.dayKey) : null;
     if (!line || !session) return;
     const prev = setsForLine(session, line.id).slice(-1)[0];
     if (!prev) return;
@@ -1582,7 +1570,7 @@ function wireHandlers() {
   document.querySelectorAll("[data-del-set]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       const id = e.currentTarget.getAttribute("data-del-set");
-      const session = activeSessionToday(state, route.dayKey);
+      const session = activeSessionForDay(state, route.dayKey);
       if (session && id) deleteSet(state, session.id, id);
       render();
     });
